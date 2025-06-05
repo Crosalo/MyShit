@@ -1,5 +1,3 @@
 body { font-family: Arial, sans-serif; margin: 20px; }
-input { margin: 5px 0; }
-button { margin-top: 10px; }
-
 .container { max-width: 600px; margin: 0 auto; }
+header { margin-bottom: 20px; }

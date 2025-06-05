@@ -2,7 +2,6 @@ from flask import Flask, request, redirect, render_template, session, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import subprocess
-import os
 
 DB_PATH = 'app.db'
 app = Flask(__name__)

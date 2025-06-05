@@ -1,23 +1,37 @@
 <!doctype html>
-<title>Dashboard</title>
-<h2>Dashboard</h2>
-<p>Bot status: {{ 'running' if running else 'stopped' }}</p>
-<a href="{{ url_for('start_bot') }}">Start</a> | <a href="{{ url_for('stop_bot') }}">Stop</a> |
-<a href="{{ url_for('settings') }}">Settings</a> | <a href="{{ url_for('logout') }}">Logout</a>
-
-<canvas id="chart" width="400" height="200"></canvas>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="container">
+<header class="d-flex justify-content-between align-items-center">
+  <h2>Dashboard</h2>
+  <nav>
+    <a class="btn btn-sm btn-primary" href="{{ url_for('start_bot') }}">Start</a>
+    <a class="btn btn-sm btn-secondary" href="{{ url_for('stop_bot') }}">Stop</a>
+    <a class="btn btn-sm btn-info" href="{{ url_for('settings') }}">Settings</a>
+    <a class="btn btn-sm btn-outline-danger" href="{{ url_for('logout') }}">Logout</a>
+  </nav>
+</header>
+<p>Bot status: <strong>{{ 'running' if running else 'stopped' }}</strong></p>
+<canvas id="chart" height="200"></canvas>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 const ctx = document.getElementById('chart').getContext('2d');
 const profits = {{ profits|tojson }};
 const data = {
-    labels: profits.map((_, i) => i + 1),
-    datasets: [{
-        label: 'Profit/Loss',
-        data: profits,
-        borderColor: profits.map(v => v >= 0 ? 'green' : 'red'),
-        fill: false,
-    }]
+  labels: profits.map((_, i) => i + 1),
+  datasets: [{
+    label: 'Profit/Loss',
+    data: profits,
+    borderColor: profits.map(v => v >= 0 ? 'green' : 'red'),
+    fill: false,
+  }]
 };
 new Chart(ctx, { type: 'line', data });
 </script>
+</body>
+</html>
