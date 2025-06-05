@@ -133,6 +133,7 @@ def start_bot():
     global bot_process
     if bot_process is None:
         env = os.environ.copy()
+        env['PYTHONUNBUFFERED'] = '1'
         user = get_current_user()
         if user:
             if user['provider']:

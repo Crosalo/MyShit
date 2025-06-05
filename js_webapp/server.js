@@ -105,6 +105,7 @@ app.get('/start', (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   if (!botProcess) {
     const env = { ...process.env };
+    env.PYTHONUNBUFFERED = '1';
     if (req.session.user.provider) env.WEB3_PROVIDER = req.session.user.provider;
     if (req.session.user.privateKey) env.PRIVATE_KEY = req.session.user.privateKey;
     const log = fs.openSync('../bot.log', 'a');
