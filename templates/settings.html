@@ -1,0 +1,11 @@
+<!doctype html>
+<title>Settings</title>
+<h2>Settings</h2>
+<form method="post">
+  <label>RPC Provider</label><br>
+  <input type="text" name="provider" value="{{ provider or '' }}"><br>
+  <label>Private Key</label><br>
+  <input type="text" name="private_key" value="{{ private_key or '' }}"><br>
+  <button type="submit">Save</button>
+</form>
+<a href="{{ url_for('index') }}">Home</a>

@@ -1,0 +1,23 @@
+<!doctype html>
+<title>Dashboard</title>
+<h2>Dashboard</h2>
+<p>Bot status: {{ 'running' if running else 'stopped' }}</p>
+<a href="{{ url_for('start_bot') }}">Start</a> | <a href="{{ url_for('stop_bot') }}">Stop</a> |
+<a href="{{ url_for('settings') }}">Settings</a> | <a href="{{ url_for('logout') }}">Logout</a>
+
+<canvas id="chart" width="400" height="200"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const ctx = document.getElementById('chart').getContext('2d');
+const profits = {{ profits|tojson }};
+const data = {
+    labels: profits.map((_, i) => i + 1),
+    datasets: [{
+        label: 'Profit/Loss',
+        data: profits,
+        borderColor: profits.map(v => v >= 0 ? 'green' : 'red'),
+        fill: false,
+    }]
+};
+new Chart(ctx, { type: 'line', data });
+</script>

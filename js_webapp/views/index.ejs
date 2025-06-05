@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head>
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="/main.css">
+</head>
+<body>
+  <h2>Dashboard</h2>
+  <p>Bot status: <%= running ? 'running' : 'stopped' %></p>
+  <a href="/start">Start</a> | <a href="/stop">Stop</a> |
+  <a href="/settings">Settings</a> | <a href="/logout">Logout</a>
+
+  <canvas id="chart" width="400" height="200"></canvas>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const ctx = document.getElementById('chart').getContext('2d');
+    const profits = <%- JSON.stringify(profits) %>;
+    const labels = profits.map((_, i) => i + 1);
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Profit/Loss',
+          data: profits,
+          borderColor: profits.map(v => v >= 0 ? 'green' : 'red'),
+          fill: false,
+        }]
+      }
+    });
+  </script>
+</body>
+</html>
