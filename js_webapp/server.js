@@ -15,11 +15,17 @@ app.set('view engine', 'ejs');
 app.set('views', './views');
 app.use(express.static('public'));
 app.use(bodyParser.urlencoded({ extended: false }));
-app.use(session({ secret: 'change-me', resave: false, saveUninitialized: false }));
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'change-me',
+  resave: false,
+  saveUninitialized: false,
+}));
 
 function loadUsers() {
   if (!fs.existsSync(DB_FILE)) return [];
-  return JSON.parse(fs.readFileSync(DB_FILE));
+  const text = fs.readFileSync(DB_FILE, 'utf8');
+  if (!text.trim()) return [];
+  return JSON.parse(text);
 }
 
 function saveUsers(users) {
@@ -33,7 +39,8 @@ function findUser(username) {
 app.get('/', (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   const profits = req.session.user.profits || [];
-  res.render('index', { running: !!botProcess, profits });
+  const running = botProcess && botProcess.exitCode === null;
+  res.render('index', { running, profits });
 });
 
 app.get('/register', (req, res) => {
@@ -97,7 +104,10 @@ app.post('/settings', (req, res) => {
 app.get('/start', (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   if (!botProcess) {
-    botProcess = spawn('python', ['auto_sniper.py']);
+    const env = { ...process.env };
+    if (req.session.user.provider) env.WEB3_PROVIDER = req.session.user.provider;
+    if (req.session.user.privateKey) env.PRIVATE_KEY = req.session.user.privateKey;
+    botProcess = spawn('python', ['auto_sniper.py'], { env });
   }
   res.redirect('/');
 });

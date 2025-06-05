@@ -24,6 +24,10 @@ and ensure compliance with local regulations.
 5. Run `python sniper_bot.py` to query a token and optionally trigger a buy.
 6. For automated buying and selling, run `python auto_sniper.py`.
 
+Before running either web interface, set a secret key via the environment
+variable `SECRET_KEY` (Flask) or `SESSION_SECRET` (Node.js) to secure session
+cookies.
+
 ## Repository Structure
 
 - `config.py` – central configuration for provider URL and private key

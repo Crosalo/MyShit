@@ -2,10 +2,11 @@ from flask import Flask, request, redirect, render_template, session, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import subprocess
+import os
 
 DB_PATH = 'app.db'
 app = Flask(__name__)
-app.secret_key = 'change-me'
+app.secret_key = os.environ.get('SECRET_KEY', 'change-me')
 
 
 def init_db():
@@ -38,6 +39,22 @@ def get_db_connection():
     return conn
 
 
+def get_current_user():
+    if 'user_id' not in session:
+        return None
+    conn = get_db_connection()
+    try:
+        row = conn.execute(
+            'SELECT provider, private_key FROM users WHERE id=?',
+            (session['user_id'],)
+        ).fetchone()
+    finally:
+        conn.close()
+    if row:
+        return {'provider': row['provider'], 'private_key': row['private_key']}
+    return None
+
+
 @app.route('/')
 def index():
     if 'user_id' not in session:
@@ -46,7 +63,8 @@ def index():
     trades = conn.execute('SELECT profit FROM trades WHERE user_id=?', (session['user_id'],)).fetchall()
     conn.close()
     profits = [t['profit'] for t in trades]
-    return render_template('index.html', profits=profits, running=bot_process is not None)
+    running = bot_process is not None and bot_process.poll() is None
+    return render_template('index.html', profits=profits, running=running)
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -112,7 +130,14 @@ def settings():
 def start_bot():
     global bot_process
     if bot_process is None:
-        bot_process = subprocess.Popen(['python', 'auto_sniper.py'])
+        env = os.environ.copy()
+        user = get_current_user()
+        if user:
+            if user['provider']:
+                env['WEB3_PROVIDER'] = user['provider']
+            if user['private_key']:
+                env['PRIVATE_KEY'] = user['private_key']
+        bot_process = subprocess.Popen(['python', 'auto_sniper.py'], env=env)
     return redirect(url_for('index'))
 
 
