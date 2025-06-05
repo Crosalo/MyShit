@@ -67,6 +67,8 @@ A minimal Flask app in `webapp.py` provides a simple dashboard to control the bo
 4. In **Settings**, enter your RPC provider URL and private key
 5. Use **Start** and **Stop** on the dashboard to launch or stop the trading loop
 6. The dashboard displays a profit/loss graph from recorded trades
+7. A log of the bot output is written to `bot.log`. Use the **Logs** button to
+   view the latest entries.
 
 This interface stores data in `app.db` (SQLite). It is only a basic example and should
 be secured and extended for production use.
@@ -80,3 +82,4 @@ A lightweight Express-based version is provided in `js_webapp`. It implements th
 3. Navigate to `http://localhost:3000` and register or log in.
 4. Enter your RPC provider and private key under **Settings**.
 5. Use the dashboard to start or stop the Python trading loop.
+6. A small **Logs** link shows the latest output from `bot.log`.

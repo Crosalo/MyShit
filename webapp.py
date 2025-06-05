@@ -3,6 +3,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import subprocess
 import os
+import sys
 
 DB_PATH = 'app.db'
 app = Flask(__name__)
@@ -31,6 +32,7 @@ def init_db():
 init_db()
 
 bot_process = None
+LOG_FILE = 'bot.log'
 
 
 def get_db_connection():
@@ -137,7 +139,12 @@ def start_bot():
                 env['WEB3_PROVIDER'] = user['provider']
             if user['private_key']:
                 env['PRIVATE_KEY'] = user['private_key']
-        bot_process = subprocess.Popen(['python', 'auto_sniper.py'], env=env)
+        log = open(LOG_FILE, 'a')
+        bot_process = subprocess.Popen(
+            [sys.executable, 'auto_sniper.py'], env=env,
+            stdout=log, stderr=log
+        )
+        log.close()
     return redirect(url_for('index'))
 
 
@@ -148,6 +155,15 @@ def stop_bot():
         bot_process.terminate()
         bot_process = None
     return redirect(url_for('index'))
+
+
+@app.route('/logs')
+def view_logs():
+    if not os.path.exists(LOG_FILE):
+        return 'No logs yet', 200, {'Content-Type': 'text/plain'}
+    with open(LOG_FILE) as f:
+        lines = f.readlines()[-50:]
+    return '<pre>' + ''.join(lines) + '</pre>'
 
 
 if __name__ == '__main__':

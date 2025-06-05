@@ -107,7 +107,12 @@ app.get('/start', (req, res) => {
     const env = { ...process.env };
     if (req.session.user.provider) env.WEB3_PROVIDER = req.session.user.provider;
     if (req.session.user.privateKey) env.PRIVATE_KEY = req.session.user.privateKey;
-    botProcess = spawn('python', ['auto_sniper.py'], { env });
+    const log = fs.openSync('../bot.log', 'a');
+    botProcess = spawn(process.execPath, ['../auto_sniper.py'], {
+      env,
+      stdio: ['ignore', log, log]
+    });
+    fs.closeSync(log);
   }
   res.redirect('/');
 });
@@ -118,6 +123,13 @@ app.get('/stop', (req, res) => {
     botProcess = null;
   }
   res.redirect('/');
+});
+
+app.get('/logs', (req, res) => {
+  const path = '../bot.log';
+  if (!fs.existsSync(path)) return res.type('text/plain').send('No logs yet');
+  const lines = fs.readFileSync(path, 'utf8').trim().split('\n').slice(-50);
+  res.type('text/plain').send(lines.join('\n'));
 });
 
 app.listen(PORT, () => {
