@@ -63,7 +63,7 @@ def buy_token(token_address: str, amount_wei: int):
         'from': account.address,
         'value': amount_wei,
         'gas': 300000,
-        'gasPrice': w3.to_wei('10', 'gwei'),
+        'gasPrice': w3.to_wei(config.GAS_PRICE_GWEI, 'gwei'),
         'nonce': nonce,
     })
 
@@ -80,7 +80,7 @@ def approve_token(token_address: str, spender: str, amount_wei: int):
     txn = token.functions.approve(spender, amount_wei).build_transaction({
         'from': account.address,
         'gas': 100000,
-        'gasPrice': w3.to_wei('10', 'gwei'),
+        'gasPrice': w3.to_wei(config.GAS_PRICE_GWEI, 'gwei'),
         'nonce': nonce,
     })
     signed_txn = account.sign_transaction(txn)
@@ -107,7 +107,7 @@ def sell_token(token_address: str, amount_wei: int):
     ).build_transaction({
         'from': account.address,
         'gas': 300000,
-        'gasPrice': w3.to_wei('10', 'gwei'),
+        'gasPrice': w3.to_wei(config.GAS_PRICE_GWEI, 'gwei'),
         'nonce': nonce,
     })
     signed_txn = account.sign_transaction(txn)

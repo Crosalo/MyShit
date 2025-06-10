@@ -1,6 +1,8 @@
 import requests
 
-DEX_API = 'https://api.dexscreener.com/latest/dex/'
+from config import config
+
+DEX_API = config.DEX_API_URL
 
 
 def get_new_listings() -> list:

@@ -18,9 +18,10 @@ and ensure compliance with local regulations.
    node) and set it in `config.py` or the `WEB3_PROVIDER` environment variable.
 3. Set your private key in `config.py` or via the `PRIVATE_KEY` environment
    variable.
-4. Optional: adjust `ROUTER_ADDRESS`, `TRADE_AMOUNT_ETH` and `HOLD_SECONDS` in
-   `config.py` or via environment variables. The default router address
-   points to the Uniswap V2 router on Ethereum mainnet.
+4. Optional: adjust `ROUTER_ADDRESS`, `TRADE_AMOUNT_ETH`, `HOLD_SECONDS`,
+   `DEX_API_URL` and `GAS_PRICE_GWEI` in `config.py` or via environment
+   variables. The default router address points to the Uniswap V2 router on
+   Ethereum mainnet and gas price defaults to 10 gwei.
 5. Run `python sniper_bot.py` to query a token and optionally trigger a buy.
 6. For automated buying and selling, run `python auto_sniper.py`.
 
@@ -35,6 +36,13 @@ cookies.
 - `wallet.py` – Web3 wallet integration and transaction helper
 - `sniper_bot.py` – minimal entry point using the above modules
 - `auto_sniper.py` – loop that discovers new tokens and performs automated trades
+
+### Environment Variables
+
+- `WEB3_PROVIDER` – JSON-RPC endpoint used for Web3 calls
+- `PRIVATE_KEY` – wallet private key
+- `DEX_API_URL` – base URL for Dexscreener requests (optional)
+- `GAS_PRICE_GWEI` – gas price in gwei for transactions (optional)
 
 ## Disclaimer
 
