@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/main.css">
+</head>
+<body class="container">
+<header class="d-flex justify-content-between align-items-center my-3">
+  <h2>Dashboard</h2>
+  <nav>
+    <a class="btn btn-sm btn-primary" href="/start">Start</a>
+    <a class="btn btn-sm btn-secondary" href="/stop">Stop</a>
+    <a class="btn btn-sm btn-info" href="/settings">Settings</a>
+    <a class="btn btn-sm btn-warning" href="/logs">Logs</a>
+    <a class="btn btn-sm btn-outline-danger" href="/logout">Logout</a>
+  </nav>
+</header>
+<p>Bot status: <strong><%= running ? 'running' : 'stopped' %></strong></p>
+<canvas id="chart" height="200"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const ctx = document.getElementById('chart').getContext('2d');
+  const profits = <%- JSON.stringify(profits) %>;
+  const labels = profits.map((_, i) => i + 1);
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Profit/Loss',
+        data: profits,
+        borderColor: profits.map(v => v >= 0 ? 'green' : 'red'),
+        fill: false,
+      }]
+    }
+  });
+</script>
+</body>
+</html>
