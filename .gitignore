@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+
+# Database and logs
+app.db
+bot.log
+
+# Environment variables
+.env
+
+# Node
+js_webapp/node_modules/
+js_webapp/users.json

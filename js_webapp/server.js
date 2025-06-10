@@ -15,8 +15,12 @@ app.set('view engine', 'ejs');
 app.set('views', './views');
 app.use(express.static('public'));
 app.use(bodyParser.urlencoded({ extended: false }));
+const SESSION_SECRET = process.env.SESSION_SECRET;
+if (!SESSION_SECRET) {
+  throw new Error('SESSION_SECRET environment variable not set');
+}
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'change-me',
+  secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
 }));

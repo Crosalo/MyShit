@@ -27,7 +27,8 @@ and ensure compliance with local regulations.
 
 Before running either web interface, set a secret key via the environment
 variable `SECRET_KEY` (Flask) or `SESSION_SECRET` (Node.js) to secure session
-cookies.
+cookies. These variables are **required**; the servers abort on startup if
+they are missing.
 
 ## Repository Structure
 

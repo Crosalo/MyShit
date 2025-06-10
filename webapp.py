@@ -7,7 +7,11 @@ import sys
 
 DB_PATH = 'app.db'
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'change-me')
+
+secret = os.environ.get('SECRET_KEY')
+if not secret:
+    raise RuntimeError('SECRET_KEY environment variable not set')
+app.secret_key = secret
 
 
 def init_db():
