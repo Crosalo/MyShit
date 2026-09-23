@@ -1,0 +1,25 @@
+name: Core-Tests
+
+on:
+  push:
+    paths:
+      - "Assets/_Game/Scripts/Core/**"
+      - "Assets/_Game/Tests/**"
+      - "Tools/CoreTests/**"
+      - ".github/workflows/core-tests.yml"
+  pull_request:
+    paths:
+      - "Assets/_Game/Scripts/Core/**"
+      - "Assets/_Game/Tests/**"
+      - "Tools/CoreTests/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Spiellogik testen (ohne Unity)
+        run: dotnet test Tools/CoreTests
