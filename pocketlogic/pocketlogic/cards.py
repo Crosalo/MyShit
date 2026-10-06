@@ -7,7 +7,7 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
 from .brand import logo_tile
 
@@ -149,4 +149,92 @@ def full_card(cfg, text: str, label: str | None = None, W=1080, H=1920) -> Image
     hl = _highlight_words(text)
     for i, line in enumerate(lines):
         draw_rich(d, 80, top + i * lh, line, fnt, rgb(b["ink"]), rgb(b["accent"]), hl)
+    return img.convert("RGB")
+
+
+# --- Clickbait-Stil: riesiger Punch-Text, ein Wort als gekippter Sticker ---------------------
+
+def _sticker(cfg, word: str, fnt) -> Image.Image:
+    """Hervorgehobenes Wort: Akzentflaeche, dunkle Schrift, leicht gekippt."""
+    b = cfg["brand"]
+    tmp = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+    l, t, r, btm = tmp.textbbox((0, 0), word, font=fnt)
+    pad_x, pad_y = int(fnt.size * 0.18), int(fnt.size * 0.10)
+    w, h = r - l + 2 * pad_x, btm - t + 2 * pad_y
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle([0, 0, w - 1, h - 1], radius=int(fnt.size * 0.18), fill=rgb(b["accent"]) + (255,))
+    d.text((pad_x - l, pad_y - t), word, font=fnt, fill=rgb(b["bg"]))
+    return img.rotate(4, resample=Image.BICUBIC, expand=True)
+
+
+def punch_layer(cfg, text: str, highlight: str, center_y: int, W=1080, H=1920,
+                max_w: int = 860, label: str | None = None) -> Image.Image:
+    """Transparente Ebene mit riesigem Text in Grossbuchstaben; highlight-Wort als Sticker."""
+    b = cfg["brand"]
+    text = text.upper()
+    hl = highlight.upper().strip(".,!?")
+    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    for size in range(210, 96, -6):
+        fnt = font(cfg, "bold", size)
+        lines = wrap(d, text, fnt, max_w)
+        if len(lines) <= 3 and all(d.textlength(ln, font=fnt) <= max_w for ln in lines):
+            break
+    lh = int(fnt.size * 1.12)
+    cx = 495  # leicht links der Mitte: rechts liegen die Shorts-Buttons
+    top = int(center_y - lh * len(lines) / 2)
+    if label:
+        lf = font(cfg, "bold", 34)
+        lw = d.textlength(label.upper(), font=lf)
+        d.rounded_rectangle([cx - lw / 2 - 22, top - 92, cx + lw / 2 + 22, top - 36], radius=28,
+                            fill=rgb(b["label"]) + (255,))
+        d.text((cx - lw / 2, top - 86), label.upper(), font=lf, fill=rgb(b["bg"]))
+    stroke = max(4, fnt.size // 22)
+    for i, line in enumerate(lines):
+        words = line.split()
+        space = d.textlength(" ", font=fnt)
+        widths = [d.textlength(w, font=fnt) for w in words]
+        x = cx - (sum(widths) + space * (len(words) - 1)) / 2
+        y = top + i * lh
+        for w, wd in zip(words, widths):
+            if w.strip(".,!?") == hl:
+                st = _sticker(cfg, w, fnt)
+                layer.alpha_composite(st, (int(x + wd / 2 - st.width / 2), int(y + fnt.size * 0.55 - st.height / 2)))
+            else:
+                d.text((x + 6, y + 8), w, font=fnt, fill=(0, 0, 0, 150))          # Schlagschatten
+                d.text((x, y), w, font=fnt, fill=rgb(b["ink"]), stroke_width=stroke, stroke_fill=rgb(b["bg"]))
+            x += wd + space
+    return layer
+
+
+def _darken(img: Image.Image, cfg, W, H) -> Image.Image:
+    """Clip-Frame fuellend zuschneiden, abdunkeln, violett toenen, Vignette."""
+    src = img.convert("RGB")
+    scale = max(W / src.width, H / src.height)
+    src = src.resize((int(src.width * scale + 1), int(src.height * scale + 1)), Image.LANCZOS)
+    left, top = (src.width - W) // 2, (src.height - H) // 2
+    src = src.crop((left, top, left + W, top + H))
+    src = ImageEnhance.Brightness(src).enhance(0.55)
+    src = Image.blend(src, Image.new("RGB", (W, H), rgb(cfg["brand"]["bg"])), 0.3)
+    vignette = Image.new("L", (W, H), 0)
+    ImageDraw.Draw(vignette).ellipse([-W * 0.25, -H * 0.1, W * 1.25, H * 1.1], fill=255)
+    vignette = vignette.filter(ImageFilter.GaussianBlur(160))
+    return Image.composite(src, Image.new("RGB", (W, H), (0, 0, 0)), vignette)
+
+
+def punch_overlay(cfg, text: str, highlight: str, label: str, W=1080, H=1920) -> Image.Image:
+    """Erstes Bild im Video: abgedunkelter Clip + riesiger Punch-Text (wirkt wie das Thumbnail)."""
+    layer = Image.new("RGBA", (W, H), rgb(cfg["brand"]["bg"]) + (110,))
+    layer.alpha_composite(watermark(cfg, W, H))
+    layer.alpha_composite(punch_layer(cfg, text, highlight, center_y=760, label=label))
+    return layer
+
+
+def thumbnail(cfg, text: str, highlight: str, frame: Image.Image | None = None, W=1080, H=1920) -> Image.Image:
+    """Thumbnail: echter Clip-Frame (falls vorhanden) + riesiger Punch-Text + Logo."""
+    base = _darken(frame, cfg, W, H) if frame is not None else _background(cfg, W, H)
+    img = base.convert("RGBA")
+    img.alpha_composite(watermark(cfg, W, H))
+    img.alpha_composite(punch_layer(cfg, text, highlight, center_y=820))
     return img.convert("RGB")

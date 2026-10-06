@@ -2,7 +2,7 @@
 import re
 
 from .claude_client import ask_json
-from .runlog import read_log, recent
+from .runlog import published, read_log, recent
 
 
 def _norm(s: str) -> set[str]:
@@ -45,6 +45,8 @@ Format: {fmt}
 Give 5 topic ideas, best first. Rules:
 - Real informational value, 100% factually verifiable. Do NOT rely on invented statistics.
 - Prefer topics explainable by simple mechanics or math the viewer can follow in 40 seconds.
+- Prefer angles that trigger strong curiosity or a "wait, what?" feeling: hidden costs, traps,
+  things that feel unfair, counter-intuitive math, "you've been doing it wrong". The surprise must be real.
 - No investment, tax or legal advice; explain how things work only.
 - If you are not sure a claim is true, pick a different topic.
 - Must not be similar to these recent topics:
@@ -58,7 +60,7 @@ def choose_topic(cfg: dict, manual: str | None = None) -> dict:
     category, fmt = pick_rotation(cfg, entries)
     if manual:
         return {"topic": manual, "angle": "", "category": category, "format": fmt}
-    used = [e["topic"] for e in recent(entries, cfg["content"]["no_repeat_days"]) if e.get("topic")]
+    used = [e["topic"] for e in published(recent(entries, cfg["content"]["no_repeat_days"])) if e.get("topic")]
 
     def validate(data):
         topics = data["topics"]

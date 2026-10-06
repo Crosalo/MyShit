@@ -35,19 +35,25 @@ def _encode_args(cfg: dict) -> list[str]:
 
 
 def render_segment(cfg: dict, scene: dict, length: float, out: Path) -> Path:
-    """Eine Szene als stummes 1080x1920-Video der exakten Laenge."""
+    """Eine Szene als stummes 1080x1920-Video der exakten Laenge. Szene 1 bekommt einen Slam-Zoom."""
     r = cfg["render"]
     W, H, fps = r["width"], r["height"], r["fps"]
     frames = max(1, round(length * fps))
+    slam = scene["index"] == 0
+    sz, sf = r["slam_zoom"], max(1, round(r["slam_seconds"] * fps))  # Start-Zoom, Dauer in Frames
     if scene["type"] == "clip":
+        zoom = (f",zoompan=z='if(lt(on,{sf}),{sz}-({sz}-1)*on/{sf},1)':x='iw/2-(iw/zoom/2)':"
+                f"y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={fps}") if slam else ""
         vf = (f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
-              f"fps={fps},setsar=1[v];[v][1:v]overlay=0:0,format=yuv420p")
+              f"fps={fps},setsar=1[v];[v][1:v]overlay=0:0{zoom},format=yuv420p")
         ffmpeg(["-stream_loop", "-1", "-i", scene["path"], "-i", scene["overlay"],
                 "-filter_complex", vf, "-frames:v", str(frames), "-an", *_encode_args(cfg), str(out)])
     else:  # Standbild mit dezentem Ken-Burns-Zoom (2x hochskaliert gegen Zittern)
         z = cfg["visuals"]["ken_burns_zoom"]
         step = (z - 1) / frames
-        vf = (f"scale={W * 2}:{H * 2},zoompan=z='min(zoom+{step:.6f},{z})':"
+        zexpr = (f"if(lt(on,{sf}),{sz}-({sz}-1)*on/{sf},1+{step:.6f}*(on-{sf}))" if slam
+                 else f"min(zoom+{step:.6f},{z})")
+        vf = (f"scale={W * 2}:{H * 2},zoompan=z='{zexpr}':"
               f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames}:s={W}x{H}:fps={fps},format=yuv420p")
         ffmpeg(["-i", scene["path"], "-vf", vf, "-frames:v", str(frames), *_encode_args(cfg), str(out)])
     return out

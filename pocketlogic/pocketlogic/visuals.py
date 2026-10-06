@@ -3,16 +3,45 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 from pathlib import Path
 
 import requests
+from PIL import Image
 
 from . import cards
-from .runlog import read_log, recent
+from .render import ffmpeg
+from .runlog import published, read_log, recent
 
 log = logging.getLogger(__name__)
 API = "https://pixabay.com/api/videos/"
+
+# Woerter, die in Suchanfragen nichts ueber den Inhalt sagen (Pixabay matcht sie trotzdem)
+GENERIC = {"close", "up", "closeup", "slow", "motion", "time", "lapse", "timelapse", "hand", "hands",
+           "person", "people", "man", "woman", "on", "of", "and", "the", "a", "an", "in", "with", "at",
+           "to", "from", "shot", "video", "footage", "background", "4k", "hd", "top", "view", "detail"}
+
+
+def _stem(w: str) -> str:
+    w = w.lower()
+    for suf in ("ing", "es", "s"):
+        if w.endswith(suf) and len(w) - len(suf) >= 3:
+            return w[: -len(suf)]
+    return w
+
+
+def key_words(query: str) -> list[str]:
+    return [_stem(w) for w in re.findall(r"[a-zA-Z]+", query) if w.lower() not in GENERIC]
+
+
+def relevant(query: str, tags: str, min_ratio: float = 0.5) -> bool:
+    """Mindestens die Haelfte der Kernwoerter der Suche muss in den Clip-Tags vorkommen."""
+    keys = set(key_words(query))
+    if not keys:
+        return True
+    tag_words = {_stem(w) for w in re.findall(r"[a-zA-Z]+", tags)}
+    return len(keys & tag_words) / len(keys) >= min_ratio
 
 
 def scene_timings(scenes: list[dict], words: list[dict], audio_dur: float, tail: float) -> list[tuple[float, float]]:
@@ -65,12 +94,12 @@ class Pixabay:
             return hits
         raise RuntimeError("Pixabay nicht erreichbar")
 
-    def pick(self, hits: list[dict], need: float, exclude: set[int]) -> dict | None:
-        """Bester Clip: Hochformat bevorzugt, ausreichend lang und aufgeloest, nicht schon genutzt."""
+    def pick(self, query: str, hits: list[dict], need: float, exclude: set[int]) -> dict | None:
+        """Bester Clip: thematisch passend (Tags), Hochformat bevorzugt, lang und scharf genug, neu."""
         v = self.cfg["visuals"]
-        best, best_score = None, -1.0
+        best, best_score = None, -1e9
         for rank, h in enumerate(hits):
-            if h["id"] in exclude:
+            if h["id"] in exclude or not relevant(query, h.get("tags", "")):
                 continue
             variants = [x for x in h.get("videos", {}).values()
                         if x.get("url") and x.get("height", 0) >= v["min_height"]
@@ -109,7 +138,7 @@ class Pixabay:
 
 
 def used_clip_ids(cfg: dict) -> set[int]:
-    entries = recent(read_log(cfg["paths"]["run_log"]), cfg["content"]["no_repeat_days"])
+    entries = published(recent(read_log(cfg["paths"]["run_log"]), cfg["content"]["no_repeat_days"]))
     return {cid for e in entries for cid in (e.get("clip_ids") or [])}
 
 
@@ -128,9 +157,12 @@ def build_visuals(cfg: dict, topic: dict, script: dict, tts: dict, words: list[d
         need = end - start
         clip = None
         if px:
-            for term in scene["search_terms"]:
+            # erst die Begriffe von Claude, dann verkuerzte Kernwort-Suchen
+            terms = list(scene["search_terms"])
+            terms += [" ".join(key_words(t)[:2]) for t in scene["search_terms"] if len(key_words(t)) > 2]
+            for term in terms:
                 try:
-                    clip = px.pick(px.search(term), need, exclude)
+                    clip = px.pick(term, px.search(term), need, exclude)
                 except RuntimeError as e:
                     log.warning("Szene %d, Suche '%s': %s", i + 1, term, e)
                 if clip:
@@ -144,9 +176,9 @@ def build_visuals(cfg: dict, topic: dict, script: dict, tts: dict, words: list[d
                 log.warning("%s - Fallback auf Karte", e)
                 clip = None
         if clip:
-            # Overlay: Szene 1 zeigt den Hook als Titel, sonst optional card_text
+            # Overlay: Szene 1 zeigt den Punch-Text (wie das Thumbnail), sonst optional card_text
             if i == 0:
-                ov = cards.hook_overlay(cfg, script["hook"], topic["format"])
+                ov = cards.punch_overlay(cfg, script["thumb_text"], script["thumb_highlight"], topic["format"])
             elif scene.get("card_text"):
                 ov = cards.fact_overlay(cfg, scene["card_text"])
             else:
@@ -154,15 +186,27 @@ def build_visuals(cfg: dict, topic: dict, script: dict, tts: dict, words: list[d
             item["overlay"] = str(out / f"overlay_{i:02d}.png")
             ov.save(item["overlay"])
         else:
-            text = script["hook"] if i == 0 else (scene.get("card_text") or scene["text"])
-            card = cards.full_card(cfg, text, topic["format"] if i == 0 else None)
+            if i == 0:
+                card = cards.thumbnail(cfg, script["thumb_text"], script["thumb_highlight"])
+            else:
+                card = cards.full_card(cfg, scene.get("card_text") or scene["text"])
             item.update(type="card", path=str(out / f"card_{i:02d}.png"))
             card.save(item["path"])
         log.info("Szene %d: %s %.1fs%s", i + 1, item["type"], need,
                  f" (Pixabay {item.get('clip_id')})" if item["type"] == "clip" else "")
         scenes.append(item)
 
+    # Thumbnail: Frame aus dem ersten Clip als Hintergrund + Punch-Text
+    frame = None
+    first_clip = next((sc for sc in scenes if sc["type"] == "clip"), None)
+    if first_clip:
+        jpg = out / "thumb_frame.jpg"
+        try:
+            ffmpeg(["-ss", "1", "-i", first_clip["path"], "-frames:v", "1", str(jpg)])
+            frame = Image.open(jpg)
+        except (RuntimeError, OSError) as e:
+            log.warning("Thumbnail-Frame nicht extrahierbar: %s", e)
     thumb = run / "thumbnail.png"
-    cards.full_card(cfg, script["title"], topic["format"]).save(thumb)
+    cards.thumbnail(cfg, script["thumb_text"], script["thumb_highlight"], frame).save(thumb)
     return {"scenes": scenes, "thumbnail": str(thumb),
             "clip_ids": [s["clip_id"] for s in scenes if s["type"] == "clip"]}

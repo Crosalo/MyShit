@@ -37,9 +37,10 @@ def test_extract_json_variants():
         extract_json("no json here")
 
 
-def _script(words: int, hook="Your bank loves this tiny number.") -> Script:
+def _script(words: int, hook="Your bank loves this tiny number.", thumb="THE MINIMUM TRAP",
+            highlight="TRAP") -> Script:
     body = hook + " " + " ".join(["word"] * (words - len(hook.split())))
-    return Script(title="T", hook=hook, script=body,
+    return Script(title="T", hook=hook, thumb_text=thumb, thumb_highlight=highlight, script=body,
                   scenes=[{"text": "x", "search_terms": ["bank"]}] * 3,
                   description="Desc.", tags=["money"], category="c", format="f")
 
@@ -75,3 +76,18 @@ def test_subtitle_chunks_and_ass(cfg, tmp_path):
     assert ass_color("#C77DFF") == "&H00FF7DC7"
     text = build_ass(cfg, words, tmp_path / "s.ass").read_text()
     assert text.count("Dialogue:") == 4 and "MINIMUM" in text
+
+
+def test_thumb_text_rules(cfg):
+    assert check_limits(_script(110, highlight="nope"), cfg).thumb_highlight == "TRAP"  # Fallback
+    with pytest.raises(ValueError):
+        check_limits(_script(110, thumb="WAY TOO MANY WORDS FOR A THUMBNAIL"), cfg)
+
+
+def test_clip_relevance_filter():
+    from pocketlogic.visuals import relevant
+    assert not relevant("pile of coins close up", "bacon, pan, hot, belly bacon, meal, food, close up")
+    assert relevant("pile of coins close up", "coins, money, euro, pile, finance")
+    assert not relevant("person reading bank statement", "woman, quran, read, book reading, mosque")
+    assert not relevant("calculator and notebook on desk", "on air, podcast, desk, microphone, studio")
+    assert relevant("stack of hundred dollar bills", "money, cash, banknote, bill, dollar, 100, usd")

@@ -13,6 +13,8 @@ class Scene(BaseModel):
 class Script(BaseModel):
     title: str
     hook: str
+    thumb_text: str                             # 2-5 Woerter, riesig auf Thumbnail + erstem Bild
+    thumb_highlight: str                        # ein Wort daraus, wird als Sticker hervorgehoben
     script: str
     scenes: list[Scene] = Field(min_length=3)
     description: str
@@ -36,6 +38,11 @@ def check_limits(s: Script, cfg: dict) -> Script:
         raise ValueError(f"Hook zu lang ({word_count(s.hook)} Woerter)")
     if not s.script.strip().startswith(s.hook.strip().rstrip(".!?")[:20]):
         raise ValueError("Skript muss mit dem Hook beginnen")
+    if not 2 <= word_count(s.thumb_text) <= 5 or len(s.thumb_text) > 32:
+        raise ValueError(f"thumb_text muss 2-5 Woerter / max. 32 Zeichen haben: {s.thumb_text!r}")
+    tw = [w.strip(".,!?").lower() for w in s.thumb_text.split()]
+    if s.thumb_highlight.strip(".,!?").lower() not in tw:
+        s.thumb_highlight = s.thumb_text.split()[-1]  # Fallback: letztes Wort
     if "#Shorts" not in s.description:
         s.description += " #Shorts"
     if "financial advice" not in s.description.lower():
@@ -54,23 +61,41 @@ Category: {t['category']}
 Format: {t['format']}
 
 Structure (HPC):
-1. HOOK - first 2 seconds, max {c['hook_max_words']} words, curiosity or surprise. The script MUST start with the hook text.
-2. PROGRESSION - build the explanation step by step, simple mechanics or math.
-3. CLIMAX - the "aha" payoff, short closing line. No "like and subscribe".
+1. HOOK - first 2 seconds, max {c['hook_max_words']} words. The script MUST start with the hook text.
+   Make it impossible to scroll past: speak to "you", use a concrete number or stake, a pattern
+   interrupt or a contrarian claim. Examples of the energy (do not copy):
+   "Your bank makes money every time you do this." / "That $5 coffee actually costs you $50."
+   / "Stop paying the minimum. Here's the math." / "This number on your card is lying to you."
+2. PROGRESSION - build the explanation step by step, simple mechanics or math, keep tension.
+3. CLIMAX - the "aha" payoff that delivers on the hook, short punchy last line. No "like and subscribe".
 
 Length of "script": {length} (spoken, no stage directions, no emojis).
+
+Packaging (title + thumbnail) - maximum curiosity, but 100% honest:
+- "title": max 60 characters. Curiosity gap + specific number or stake, e.g.
+  "The $20 Trap Hidden in Every Credit Card Bill", "Why Paying the Minimum Keeps You Broke".
+  Title case. At most one emoji, optional. Never ALL CAPS for the whole title.
+- "thumb_text": 2-5 words, ALL CAPS, huge on the thumbnail and the first frame. Shocking or
+  intriguing, e.g. "$30 PAID, $10 GONE?", "THE MINIMUM TRAP", "YOU'RE PAYING TWICE".
+- "thumb_highlight": exactly one word from thumb_text to highlight (usually the number or the twist).
+- The video MUST pay off whatever title and thumb_text promise. No false claims, no fake urgency,
+  no "banks hate this" unless literally true. Misleading packaging gets the channel penalized.
 
 Hard rules:
 - Everything must be factually correct and verifiable. Do NOT invent numbers, statistics or sources. Prefer worked examples with round numbers you calculate yourself and label as examples ("say you ...").
 - No investment, tax or legal advice. Explain how things work.
 - If you are unsure about a fact, keep it general instead of guessing.
+- search_terms: concrete, filmable stock-footage queries (objects, hands, people, places),
+  e.g. "hand swiping credit card", "pile of coins close up". Avoid abstract words like "interest" or "debt".
 
 Answer ONLY with JSON:
-{{"title": "<=70 chars, clickworthy, not misleading",
+{{"title": "...",
   "hook": "...",
+  "thumb_text": "...",
+  "thumb_highlight": "...",
   "script": "full voice-over text",
-  "scenes": [{{"text": "sentence(s) from the script", "search_terms": ["1-3 English stock-footage search terms"], "card_text": "optional short on-screen text or null"}}],
-  "description": "2-3 sentences + #Shorts + 3-5 hashtags",
+  "scenes": [{{"text": "sentence(s) from the script", "search_terms": ["1-3 English stock-footage search terms"], "card_text": "optional short on-screen text (max 6 words) or null"}}],
+  "description": "first line is a hook question, then 1-2 sentences + #Shorts + 3-5 hashtags",
   "tags": ["..."],
   "category": "{t['category']}",
   "format": "{t['format']}"}}

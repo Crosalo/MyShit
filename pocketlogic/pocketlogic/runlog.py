@@ -35,3 +35,8 @@ def recent(entries: list[dict], days: int) -> list[dict]:
         except (KeyError, ValueError):
             continue
     return out
+
+
+def published(entries: list[dict]) -> list[dict]:
+    """Nur echte, erfolgreiche Runs sperren Themen und Clips (keine Testlaeufe, keine Fehler)."""
+    return [e for e in entries if e.get("status") == "ok" and not e.get("dry_run")]
