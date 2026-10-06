@@ -130,3 +130,28 @@ def test_find_phrase_and_cta_check(cfg):
     s.cta = "Follow and like this video now please."
     with pytest.raises(ValueError):
         check_cta(s, cfg)                   # nicht woertlich im Skript
+
+
+def test_publish_time_dst_and_lead(cfg):
+    from datetime import datetime, timezone
+    from pocketlogic.youtube import next_publish_time
+    # Sommer: 07:00 Zuerich = 05:00 UTC -> 15:00 New York (EDT) = 19:00 UTC am selben Tag
+    assert next_publish_time(cfg, datetime(2026, 7, 1, 5, 0, tzinfo=timezone.utc)) == \
+        datetime(2026, 7, 1, 19, 0, tzinfo=timezone.utc)
+    # Winter: 15:00 New York (EST) = 20:00 UTC
+    assert next_publish_time(cfg, datetime(2026, 1, 15, 6, 0, tzinfo=timezone.utc)) == \
+        datetime(2026, 1, 15, 20, 0, tzinfo=timezone.utc)
+    # zu knapp vor 15:00 -> naechster Tag
+    assert next_publish_time(cfg, datetime(2026, 7, 1, 18, 45, tzinfo=timezone.utc)) == \
+        datetime(2026, 7, 2, 19, 0, tzinfo=timezone.utc)
+
+
+def test_upload_metadata(cfg):
+    from datetime import datetime, timezone
+    from pocketlogic.youtube import build_metadata
+    script = {"title": "Why <50%> Off Isn't 70%", "description": "Desc #Shorts", "tags": ["money"] * 3}
+    m = build_metadata(cfg, script, datetime(2026, 7, 1, 19, tzinfo=timezone.utc), ["pexels", "pixabay"])
+    assert "<" not in m["snippet"]["title"] and m["snippet"]["categoryId"] == "27"
+    assert m["status"]["publishAt"] == "2026-07-01T19:00:00.000Z"
+    assert m["status"]["privacyStatus"] == "private" and m["status"]["selfDeclaredMadeForKids"] is False
+    assert "Footage: Pexels & Pixabay" in m["snippet"]["description"]

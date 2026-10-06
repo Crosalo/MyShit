@@ -3,7 +3,7 @@ channel:
   name: "Pocket Logic"
   tagline: "Money, explained in 40 seconds"
   language: en
-  youtube_category: 28        # Science & Technology
+  youtube_category: 27        # Education
   made_for_kids: false
 
 brand:                        # siehe assets/ fuer Logo
@@ -112,9 +112,21 @@ paths:
   music_dir: "data/music"       # eigene lizenzfreie Musik (mp3/m4a/wav) hier ablegen
   font_dir: "/usr/share/fonts/opentype/inter"
 
+upload:
+  privacy: "private"            # privat hochladen + publishAt (geplante Veroeffentlichung)
+  audited: false                # erst nach bestandenem YouTube-API-Audit auf true setzen
+  set_thumbnail: false          # braucht eine per Telefon bestaetigte YouTube-Kanal
+  ai_disclosure: true           # "veraenderte/synthetische Inhalte" setzen, falls die API es kennt
+  credits: true                 # "Footage: Pexels & Pixabay" in die Beschreibung
+  chunk_mb: 8                   # Blockgroesse beim Upload
+
+ntfy:
+  server: "https://ntfy.sh"
+
 retention:
-  work_days: 7                  # Clips/Zwischenschritte
-  video_days: 30                # fertige Videos
+  work_days: 7                  # Zwischenschritte (Shots, Audio, Grafiken) eines Runs
+  video_days: 30                # danach wird der ganze Run-Ordner inkl. Video geloescht
+  cache_days: 14                # ungenutzte Clips/Vorschaubilder/Suchergebnisse im Cache
 
 schedule:
   local_time: "07:00"
