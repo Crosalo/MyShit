@@ -17,12 +17,15 @@ from datetime import datetime
 from pathlib import Path
 
 from .config import load_config
+from .render import render_video
 from .runlog import append_log
 from .script import generate_script
+from .subtitles import build_ass
 from .topic import choose_topic
 from .tts import voice_with_length_guard
+from .visuals import build_visuals
 
-STAGES = ["topic", "script", "tts"]  # weitere Stufen (visuals, subtitles, render, upload) folgen
+STAGES = ["topic", "script", "tts", "visuals", "subtitles", "render"]  # Upload folgt
 
 log = logging.getLogger("pocketlogic")
 
@@ -47,6 +50,15 @@ def run_stage(stage: str, cfg: dict, run: Path, args) -> None:
         script, res = voice_with_length_guard(cfg, _load(run, "topic"), _load(run, "script"), run / "tts")
         _save(run, "script", script)   # evtl. gekuerzte Fassung
         _save(run, "tts", {k: v for k, v in res.items() if k != "words"})
+    elif stage == "visuals":
+        words = json.loads((run / "tts" / "words.json").read_text())
+        _save(run, "visuals", build_visuals(cfg, _load(run, "topic"), _load(run, "script"),
+                                            _load(run, "tts"), words, run))
+    elif stage == "subtitles":
+        words = json.loads((run / "tts" / "words.json").read_text())
+        build_ass(cfg, words, run / "subs.ass")
+    elif stage == "render":
+        _save(run, "render", render_video(cfg, _load(run, "visuals"), _load(run, "tts"), run / "subs.ass", run))
 
 
 def main(argv=None) -> int:
@@ -61,7 +73,7 @@ def main(argv=None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     cfg = load_config()
 
-    run = args.run or Path(cfg["paths"]["data_dir"]) / "runs" / datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    run = (args.run or Path(cfg["paths"]["data_dir"]) / "runs" / datetime.now().strftime("%Y-%m-%d_%H%M%S")).resolve()
     run.mkdir(parents=True, exist_ok=True)
 
     if args.stage:
@@ -101,11 +113,14 @@ def main(argv=None) -> int:
         topic = json.loads((run / "topic.json").read_text()) if (run / "topic.json").exists() else {}
         script = json.loads((run / "script.json").read_text()) if (run / "script.json").exists() else {}
         tts = json.loads((run / "tts.json").read_text()) if (run / "tts.json").exists() else {}
+        vis = json.loads((run / "visuals.json").read_text()) if (run / "visuals.json").exists() else {}
+        rend = json.loads((run / "render.json").read_text()) if (run / "render.json").exists() else {}
         append_log(cfg["paths"]["run_log"], {
             "run": run.name, "status": status, "error": error, "dry_run": args.dry_run,
             "topic": topic.get("topic"), "category": topic.get("category"), "format": topic.get("format"),
             "hook": script.get("hook"), "title": script.get("title"), "duration": tts.get("duration"),
-            "timings": timings,
+            "clip_ids": vis.get("clip_ids"), "video": rend.get("video"), "music": rend.get("music"),
+            "render_seconds": rend.get("render_seconds"), "timings": timings,
         })
     print(f"Run-Ordner: {run}")
     return 0 if status == "ok" else 1

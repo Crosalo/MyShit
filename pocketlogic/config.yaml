@@ -49,10 +49,40 @@ claude:
   rate_limit_wait_minutes: 20   # bei Pro-Limit spaeter erneut versuchen statt abbrechen
   rate_limit_max_waits: 6
 
+visuals:
+  min_height: 1080              # kleinere Clips werden ignoriert
+  max_download_mb: 150
+  per_page: 20                  # Treffer pro Pixabay-Suche
+  request_pause_s: 0.8          # Pixabay-Limit: 100 Anfragen / 60 s
+  api_cache_hours: 24           # Pixabay verlangt Caching der Suchergebnisse
+  ken_burns_zoom: 1.08          # dezenter Zoom bei Standbildern
+
+subtitles:
+  max_words: 2                  # Woerter pro Einblendung (1-3)
+  pause_break_s: 0.25           # Sprechpause -> neue Einblendung
+  font_size: 96
+  outline: 7
+  margin_v: 560                 # Abstand von unten (mittleres unteres Drittel)
+
+render:
+  width: 1080
+  height: 1920
+  fps: 30
+  preset: "veryfast"            # ffmpeg-Preset (Qualitaet vs. Laufzeit)
+  crf: 21
+  transition_s: 0.25            # kurze Ueberblendung zwischen Szenen
+  tail_s: 0.6                   # Nachlauf nach dem letzten Wort
+  audio_bitrate: "192k"
+  loudness_lufs: -14
+  music_volume: 0.20            # Hintergrundmusik vor dem Ducking
+
 paths:
   data_dir: "data"
   run_log: "data/run_log.jsonl"
   lock_file: "data/pocketlogic.lock"
+  cache_dir: "data/cache"
+  music_dir: "data/music"       # eigene lizenzfreie Musik (mp3/m4a/wav) hier ablegen
+  font_dir: "/usr/share/fonts/opentype/inter"
 
 retention:
   work_days: 7                  # Clips/Zwischenschritte

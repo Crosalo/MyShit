@@ -24,6 +24,6 @@ def load_config(path: Path | None = None) -> dict:
     load_env()
     with open(path or ROOT / "config.yaml", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
-    for key in ("data_dir", "run_log", "lock_file"):
+    for key in ("data_dir", "run_log", "lock_file", "cache_dir", "music_dir"):
         cfg["paths"][key] = str(ROOT / cfg["paths"][key])
     return cfg
