@@ -32,16 +32,16 @@ content:
   disclaimer: "Educational content, not financial advice."
 
 script:
-  words_min: 90
-  words_max: 130
+  words_min: 55                 # ~20-30 s: kurze Shorts halten die Zuschauer besser
+  words_max: 85
   title_max_chars: 60
-  hook_max_words: 12
+  hook_max_words: 9
   max_attempts: 3
 
 tts:
   voice: "en-US-AndrewNeural"   # klare US-Stimme; Alternativen: en-US-AriaNeural, en-US-GuyNeural
-  rate: "+8%"                   # leicht erhoehte Sprechgeschwindigkeit
-  max_seconds: 58
+  rate: "+15%"                  # zuegiges Tempo
+  max_seconds: 38               # laenger -> Claude kuerzt das Skript
 
 claude:
   command: "claude"
@@ -56,6 +56,19 @@ visuals:
   request_pause_s: 0.8          # Pixabay-Limit: 100 Anfragen / 60 s
   api_cache_hours: 24           # Pixabay verlangt Caching der Suchergebnisse
   ken_burns_zoom: 1.08          # dezenter Zoom bei Standbildern
+  ai_judge: true                # Claude prueft die Vorschaubilder und waehlt passende Clips
+  judge_candidates: 9           # Kandidaten pro Szene auf dem Kontaktbogen (3x3)
+  fallback_terms:               # bewaehrte Geld-Motive, falls die Szenen-Suche zu wenig liefert
+    - "counting cash money"
+    - "credit card payment"
+    - "shopping bags woman"
+    - "wallet with money"
+    - "receipt paper"
+    - "coins stack"
+    - "supermarket shopping cart"
+    - "calculator finance"
+    - "online shopping laptop"
+    - "dollar bills close up"
 
 subtitles:
   max_words: 2                  # Woerter pro Einblendung (1-3)
@@ -70,10 +83,15 @@ render:
   fps: 30
   preset: "veryfast"            # ffmpeg-Preset (Qualitaet vs. Laufzeit)
   crf: 21
-  transition_s: 0.25            # kurze Ueberblendung zwischen Szenen
-  slam_zoom: 1.10               # erste Szene "knallt" rein: Start-Zoom ...
-  slam_seconds: 0.35            # ... der in dieser Zeit auf 100 % faellt
-  tail_s: 0.6                   # Nachlauf nach dem letzten Wort
+  max_shot_s: 2.2               # spaetestens dann kommt ein Schnitt (Retention)
+  punch_seconds: 1.4            # so lange steht der Punch-Text am Anfang
+  slam_zoom: 1.10               # erstes Bild "knallt" rein: Start-Zoom ...
+  slam_seconds: 0.30            # ... der in dieser Zeit auf 100 % faellt
+  motion_zoom: 1.06             # staendige leichte Kamerabewegung (abwechselnd rein/raus)
+  sfx: true                     # Aufprall am Anfang, Whoosh bei Szenenwechseln
+  sfx_volume: 0.35
+  sfx_min_gap_s: 2.0            # nicht oefter als alle 2 s ein Whoosh
+  tail_s: 0.3                   # kurzer Nachlauf (Loop zurueck zum Anfang)
   audio_bitrate: "192k"
   loudness_lufs: -14
   music_volume: 0.20            # Hintergrundmusik vor dem Ducking

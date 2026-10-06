@@ -24,6 +24,15 @@ def _font(font_dir: str, name: str, size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(str(Path(font_dir) / name), size)
 
 
+def font_any(size: int) -> ImageFont.FreeTypeFont:
+    """Schrift ohne Config (fuer interne Hilfsbilder); faellt auf die Pillow-Standardschrift zurueck."""
+    for path in ("/usr/share/fonts/opentype/inter/Inter-Bold.otf",
+                 "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"):
+        if Path(path).exists():
+            return _font(str(Path(path).parent), Path(path).name, size)
+    return ImageFont.load_default(size)
+
+
 def font(cfg: dict, weight: str, size: int) -> ImageFont.FreeTypeFont:
     name = cfg["brand"]["font_bold"] if weight == "bold" else cfg["brand"]["font_medium"]
     return _font(cfg["paths"]["font_dir"], name, size)
@@ -91,8 +100,10 @@ def watermark(cfg, W=1080, H=1920) -> Image.Image:
     layer.alpha_composite(logo_tile(s), (70, 130))
     d = ImageDraw.Draw(layer)
     f = font(cfg, "bold", 44)
-    d.text((70 + s + 18, 136), "Pocket", font=f, fill=rgb(b["ink"]))
-    d.text((70 + s + 18 + d.textlength("Pocket ", font=f), 136), "Logic", font=f, fill=rgb(b["accent"]))
+    # dunkle Kontur, damit die Wortmarke auch auf hellen Clips lesbar bleibt
+    kw = {"stroke_width": 3, "stroke_fill": rgb(b["bg"])}
+    d.text((70 + s + 18, 136), "Pocket", font=f, fill=rgb(b["ink"]), **kw)
+    d.text((70 + s + 18 + d.textlength("Pocket ", font=f), 136), "Logic", font=f, fill=rgb(b["accent"]), **kw)
     return layer
 
 
@@ -185,6 +196,7 @@ def punch_layer(cfg, text: str, highlight: str, center_y: int, W=1080, H=1920,
     cx = 495  # leicht links der Mitte: rechts liegen die Shorts-Buttons
     top = int(center_y - lh * len(lines) / 2)
     if label:
+        label = label.rstrip(" .…")  # "The math behind ..." -> "The math behind"
         lf = font(cfg, "bold", 34)
         lw = d.textlength(label.upper(), font=lf)
         d.rounded_rectangle([cx - lw / 2 - 22, top - 92, cx + lw / 2 + 22, top - 36], radius=28,

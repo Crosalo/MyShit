@@ -16,7 +16,7 @@ class Script(BaseModel):
     thumb_text: str                             # 2-5 Woerter, riesig auf Thumbnail + erstem Bild
     thumb_highlight: str                        # ein Wort daraus, wird als Sticker hervorgehoben
     script: str
-    scenes: list[Scene] = Field(min_length=3)
+    scenes: list[Scene] = Field(min_length=5)
     description: str
     tags: list[str]
     category: str
@@ -60,14 +60,20 @@ Angle: {t.get('angle', '')}
 Category: {t['category']}
 Format: {t['format']}
 
+Viewers swipe away within 1-2 seconds. Every word must earn its place.
 Structure (HPC):
-1. HOOK - first 2 seconds, max {c['hook_max_words']} words. The script MUST start with the hook text.
-   Make it impossible to scroll past: speak to "you", use a concrete number or stake, a pattern
-   interrupt or a contrarian claim. Examples of the energy (do not copy):
-   "Your bank makes money every time you do this." / "That $5 coffee actually costs you $50."
-   / "Stop paying the minimum. Here's the math." / "This number on your card is lying to you."
-2. PROGRESSION - build the explanation step by step, simple mechanics or math, keep tension.
-3. CLIMAX - the "aha" payoff that delivers on the hook, short punchy last line. No "like and subscribe".
+1. HOOK - the very first words, max {c['hook_max_words']} words. The script MUST start with the hook text.
+   No intro, no "Here's why", no "Let's talk about", no "Did you know". Start mid-action.
+   Speak to "you", use a concrete number or stake, a pattern interrupt or a contrarian claim.
+   Energy examples (do not copy): "Your bank makes money every time you do this."
+   / "That $5 coffee actually costs you $50." / "Stop paying the minimum."
+2. OPEN LOOP - within the first two sentences, tease the payoff so people stay
+   (e.g. "and the last number is the one that hurts").
+3. PROGRESSION - fast, one idea per short sentence, simple math, keep tension. No filler.
+4. CLIMAX - the "aha" payoff that delivers on the hook, then a final short line that leads INTO
+   the hook so the Short loops seamlessly on replay. Do NOT repeat the hook at the end; end with a
+   half-sentence the hook completes (e.g. ending "...and that's exactly why" -> hook "Your bank ...").
+   No "like and subscribe", no "in conclusion".
 
 Length of "script": {length} (spoken, no stage directions, no emojis).
 
@@ -99,7 +105,7 @@ Answer ONLY with JSON:
   "tags": ["..."],
   "category": "{t['category']}",
   "format": "{t['format']}"}}
-Scenes must together cover the whole script in order (about 6-10 scenes)."""
+Scenes must together cover the whole script in order: 8-14 scenes, each one short sentence or phrase."""
 
 
 def generate_script(cfg: dict, topic: dict, shorten_to: int | None = None) -> dict:

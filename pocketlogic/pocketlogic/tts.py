@@ -39,6 +39,16 @@ def audio_duration(mp3: Path) -> float:
     return float(out.strip())
 
 
+def _trim_lead(mp3: Path, words: list[dict], out_dir: Path) -> tuple[Path, list[dict]]:
+    """Stille vor dem ersten Wort entfernen: Das erste Wort soll sofort kommen."""
+    lead = max(0.0, words[0]["start"] - 0.02)
+    wav = out_dir / "voice.wav"
+    subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{lead:.3f}", "-i", str(mp3),
+                    "-ar", "48000", "-ac", "1", str(wav)], check=True, timeout=120)
+    shifted = [{**w, "start": round(w["start"] - lead, 3), "end": round(w["end"] - lead, 3)} for w in words]
+    return wav, shifted
+
+
 def synthesize(cfg: dict, text: str, out_dir: Path, retries: int = 3) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
     mp3 = out_dir / "voice.mp3"
@@ -48,9 +58,10 @@ def synthesize(cfg: dict, text: str, out_dir: Path, retries: int = 3) -> dict:
             words = asyncio.run(asyncio.wait_for(_synth(text, cfg, mp3), timeout=90))
             if not words:
                 raise RuntimeError("keine Wortzeitmarken erhalten")
-            dur = audio_duration(mp3)
+            wav, words = _trim_lead(mp3, words, out_dir)
+            dur = audio_duration(wav)
             (out_dir / "words.json").write_text(json.dumps(words, indent=1))
-            return {"audio": str(mp3), "words": words, "duration": round(dur, 2)}
+            return {"audio": str(wav), "words": words, "duration": round(dur, 2)}
         except Exception as e:  # Netzwerk/Timeout -> erneut versuchen
             last = e
     raise RuntimeError(f"TTS fehlgeschlagen: {last}")

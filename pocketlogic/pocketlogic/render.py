@@ -1,4 +1,5 @@
-"""Stufe 6: Schnitt mit ffmpeg - Szenen, Ueberblendungen, Untertitel, Musik-Ducking, -14 LUFS."""
+"""Stufe 6: Schnitt mit ffmpeg - kurze Shots mit harten Schnitten und Bewegung, Untertitel,
+Soundeffekte, Musik-Ducking, Lautheit auf Ziel-LUFS."""
 import json
 import logging
 import random
@@ -9,6 +10,7 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 MUSIC_EXT = {".mp3", ".m4a", ".wav", ".ogg", ".flac"}
 VOICE_COMP = "acompressor=threshold=0.1:ratio=4:attack=5:release=120:makeup=2"  # glaettet Sprachspitzen
+WHOOSH_LEAD = 0.30  # Whoosh startet so viel vor dem Schnitt, damit er auf dem Schnitt "ankommt"
 
 
 def ffmpeg(args: list[str], cwd: Path | None = None, timeout: int = 900) -> None:
@@ -23,7 +25,7 @@ def ffmpeg(args: list[str], cwd: Path | None = None, timeout: int = 900) -> None
 
 def probe(path: Path) -> dict:
     out = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration:stream=codec_type,width,height,r_frame_rate",
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration:stream=codec_type,width,height",
          "-of", "json", str(path)], capture_output=True, text=True, check=True).stdout
     return json.loads(out)
 
@@ -34,33 +36,70 @@ def _encode_args(cfg: dict) -> list[str]:
             "-r", str(r["fps"])]
 
 
-def render_segment(cfg: dict, scene: dict, length: float, out: Path) -> Path:
-    """Eine Szene als stummes 1080x1920-Video der exakten Laenge. Szene 1 bekommt einen Slam-Zoom."""
+def _zoom_expr(cfg: dict, shot: dict, frames: int) -> str:
+    """Zoom-Ausdruck fuer zoompan: Slam (schnell von gross auf 100 %) oder sanftes Rein/Raus."""
+    r = cfg["render"]
+    if shot["slam"]:
+        sz, sf = r["slam_zoom"], max(1, round(r["slam_seconds"] * r["fps"]))
+        return f"if(lt(on,{sf}),{sz}-({sz}-1)*on/{sf},1)"
+    mz = r["motion_zoom"]
+    if shot["zoom"] == "in":
+        return f"1+({mz}-1)*on/{frames}"
+    return f"{mz}-({mz}-1)*on/{frames}"
+
+
+def render_shot(cfg: dict, shot: dict, out: Path) -> Path:
+    """Ein Shot als stummes 1080x1920-Video der exakten Laenge, mit Bewegung und Overlay."""
     r = cfg["render"]
     W, H, fps = r["width"], r["height"], r["fps"]
-    frames = max(1, round(length * fps))
-    slam = scene["index"] == 0
-    sz, sf = r["slam_zoom"], max(1, round(r["slam_seconds"] * fps))  # Start-Zoom, Dauer in Frames
-    if scene["type"] == "clip":
-        zoom = (f",zoompan=z='if(lt(on,{sf}),{sz}-({sz}-1)*on/{sf},1)':x='iw/2-(iw/zoom/2)':"
-                f"y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={fps}") if slam else ""
-        vf = (f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
-              f"fps={fps},setsar=1[v];[v][1:v]overlay=0:0{zoom},format=yuv420p")
-        ffmpeg(["-stream_loop", "-1", "-i", scene["path"], "-i", scene["overlay"],
+    frames = max(1, round(shot["duration"] * fps))
+    zp = (f"zoompan=z='{_zoom_expr(cfg, shot, frames)}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+          f"d=1:s={W}x{H}:fps={fps}")
+    if shot["type"] == "clip":
+        base = f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},fps={fps},setsar=1"
+        if shot["slam"]:  # Text knallt mit rein: erst Overlay, dann Zoom
+            vf = f"{base}[v];[v][1:v]overlay=0:0,{zp},format=yuv420p"
+        else:             # Text bleibt ruhig, nur das Bild bewegt sich
+            vf = f"{base},{zp}[v];[v][1:v]overlay=0:0,format=yuv420p"
+        ffmpeg(["-ss", str(shot.get("ss", 0)), "-stream_loop", "-1", "-i", shot["path"], "-i", shot["overlay"],
                 "-filter_complex", vf, "-frames:v", str(frames), "-an", *_encode_args(cfg), str(out)])
-    else:  # Standbild mit dezentem Ken-Burns-Zoom (2x hochskaliert gegen Zittern)
-        z = cfg["visuals"]["ken_burns_zoom"]
-        step = (z - 1) / frames
-        zexpr = (f"if(lt(on,{sf}),{sz}-({sz}-1)*on/{sf},1+{step:.6f}*(on-{sf}))" if slam
-                 else f"min(zoom+{step:.6f},{z})")
-        vf = (f"scale={W * 2}:{H * 2},zoompan=z='{zexpr}':"
-              f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames}:s={W}x{H}:fps={fps},format=yuv420p")
-        ffmpeg(["-i", scene["path"], "-vf", vf, "-frames:v", str(frames), *_encode_args(cfg), str(out)])
+    else:  # Standbild: 2x hochskaliert gegen Zittern, dann Zoom
+        z = _zoom_expr(cfg, shot, frames)
+        vf = (f"scale={W * 2}:{H * 2},zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+              f"d={frames}:s={W}x{H}:fps={fps},format=yuv420p")
+        ffmpeg(["-i", shot["path"], "-vf", vf, "-frames:v", str(frames), *_encode_args(cfg), str(out)])
     return out
 
 
+# --- Audio ---------------------------------------------------------------------------------
+
+def _sfx_files(cfg: dict) -> tuple[Path, Path]:
+    """Erzeugt die Soundeffekte einmalig synthetisch (keine Lizenzfragen)."""
+    d = Path(cfg["paths"]["cache_dir"]) / "sfx"
+    d.mkdir(parents=True, exist_ok=True)
+    impact, whoosh = d / "impact.wav", d / "whoosh.wav"
+    if not impact.exists():  # tiefer, kurzer Schlag mit abfallender Tonhoehe
+        ffmpeg(["-f", "lavfi", "-i", "aevalsrc='0.9*sin(2*PI*(70-45*t)*t)*exp(-8*t)':d=0.45:s=48000",
+                "-af", "afade=t=out:st=0.35:d=0.1", str(impact)])
+    if not whoosh.exists():  # gefiltertes Rauschen, das an- und abschwillt
+        ffmpeg(["-f", "lavfi", "-i", "anoisesrc=d=0.45:c=pink:a=0.5:r=48000",
+                "-af", "highpass=f=500,lowpass=f=6000,afade=t=in:d=0.3:curve=exp,afade=t=out:st=0.3:d=0.15",
+                str(whoosh)])
+    return impact, whoosh
+
+
+def sfx_times(cfg: dict, scene_starts: list[float]) -> list[float]:
+    """Whoosh bei Szenenwechseln, aber nicht oefter als alle sfx_min_gap_s Sekunden."""
+    gap, last, times = cfg["render"]["sfx_min_gap_s"], 0.0, []
+    for t in scene_starts[1:]:
+        if t - last >= gap:
+            times.append(max(0.0, t - WHOOSH_LEAD))
+            last = t
+    return times
+
+
 def _loudnorm_measure(path: Path, lufs: float) -> dict:
-    """Pass 1: misst die Lautheit (loudnorm gibt JSON auf stderr aus)."""
+    """Misst die Lautheit (loudnorm gibt JSON auf stderr aus)."""
     p = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(path), "-af",
                         f"loudnorm=I={lufs}:TP=-1.5:LRA=11:print_format=json", "-f", "null", "-"],
                        capture_output=True, text=True, timeout=300)
@@ -71,74 +110,86 @@ def _loudnorm_measure(path: Path, lufs: float) -> dict:
         raise RuntimeError("Lautheitsmessung fehlgeschlagen") from e
 
 
-def prepare_audio(cfg: dict, tts: dict, total: float, run: Path) -> tuple[Path, str | None]:
-    """Stimme (+ optional Musik mit Sidechain-Ducking) mischen und zweistufig auf Ziel-LUFS bringen."""
-    r = cfg["render"]
-    lufs = r["loudness_lufs"]
-    voice = str(Path(tts["audio"]).resolve())
-    mix = run / "audio_mix.wav"
-    music = pick_music(cfg)
-    if music:
-        chain = (f"[0:a]{VOICE_COMP},apad,atrim=0:{total},asplit=2[vo1][vo2];"
-                 f"[1:a]atrim=0:{total},volume={r['music_volume']}[mu];"
-                 "[mu][vo1]sidechaincompress=threshold=0.02:ratio=10:attack=15:release=350[duck];"
-                 "[vo2][duck]amix=inputs=2:duration=first:normalize=0[a]")
-        ffmpeg(["-i", voice, "-stream_loop", "-1", "-i", str(music.resolve()),
-                "-filter_complex", chain, "-map", "[a]", "-ar", "48000", str(mix)])
-    else:
-        ffmpeg(["-i", voice, "-af", f"{VOICE_COMP},apad,atrim=0:{total}", "-ar", "48000", str(mix)])
-
-    # Pass 1 messen, Pass 2 exakte Verstaerkung + Limiter bei -1.5 dBFS
-    gain = lufs - float(_loudnorm_measure(mix, lufs)["input_i"])
-    norm = run / "audio_norm.wav"
-    ffmpeg(["-i", str(mix), "-af",
-            f"volume={gain:.2f}dB,alimiter=limit=0.84:attack=2:release=60:level=disabled,"
-            f"afade=t=out:st={total - 0.4:.3f}:d=0.4", "-ar", "48000", str(norm)])
-    return norm, music.name if music else None
-
-
 def pick_music(cfg: dict) -> Path | None:
     d = Path(cfg["paths"]["music_dir"])
     files = [f for f in d.glob("*") if f.suffix.lower() in MUSIC_EXT] if d.exists() else []
     return random.choice(files) if files else None
 
 
+def prepare_audio(cfg: dict, tts: dict, total: float, scene_starts: list[float], run: Path) -> tuple[Path, str | None]:
+    """Stimme + optional Musik (Ducking) + Soundeffekte mischen, dann exakt auf Ziel-LUFS bringen."""
+    r = cfg["render"]
+    lufs = r["loudness_lufs"]
+    inputs = ["-i", str(Path(tts["audio"]).resolve())]
+    chain = [f"[0:a]{VOICE_COMP},apad,atrim=0:{total},asplit=2[vo1][vo2]"]
+    mixes = ["[vo1]"]
+    idx = 1
+
+    music = pick_music(cfg)
+    if music:
+        inputs += ["-stream_loop", "-1", "-i", str(music.resolve())]
+        chain += [f"[{idx}:a]atrim=0:{total},volume={r['music_volume']}[mu]",
+                  "[mu][vo2]sidechaincompress=threshold=0.02:ratio=10:attack=15:release=350[duck]"]
+        mixes.append("[duck]")
+        idx += 1
+    else:
+        chain.append("[vo2]anullsink")
+
+    if r.get("sfx"):
+        impact, whoosh = _sfx_files(cfg)
+        events = [(impact, 0.0)] + [(whoosh, t) for t in sfx_times(cfg, scene_starts)]
+        labels = []
+        for k, (f, t) in enumerate(events):
+            inputs += ["-i", str(f)]
+            chain.append(f"[{idx}:a]adelay=delays={int(t * 1000)}:all=1[fx{k}]")
+            labels.append(f"[fx{k}]")
+            idx += 1
+        chain.append(f"{''.join(labels)}amix=inputs={len(labels)}:normalize=0,apad,atrim=0:{total},"
+                     f"volume={r['sfx_volume']}[sfx]")
+        mixes.append("[sfx]")
+
+    chain.append(f"{''.join(mixes)}amix=inputs={len(mixes)}:duration=first:normalize=0[a]"
+                 if len(mixes) > 1 else f"{mixes[0]}anull[a]")
+    mix = run / "audio_mix.wav"
+    ffmpeg([*inputs, "-filter_complex", ";".join(chain), "-map", "[a]", "-ar", "48000", "-t", str(total), str(mix)])
+
+    # Messen, dann exakte Verstaerkung + Limiter bei -1.5 dBFS
+    gain = lufs - float(_loudnorm_measure(mix, lufs)["input_i"])
+    norm = run / "audio_norm.wav"
+    ffmpeg(["-i", str(mix), "-af", f"volume={gain:.2f}dB,alimiter=limit=0.84:attack=2:release=60:level=disabled",
+            "-ar", "48000", str(norm)])
+    return norm, music.name if music else None
+
+
+# --- Endschnitt ----------------------------------------------------------------------------
+
 def render_video(cfg: dict, visuals: dict, tts: dict, subs: Path, run: Path) -> dict:
     r = cfg["render"]
-    T = r["transition_s"]
     seg_dir = run / "segments"
     seg_dir.mkdir(exist_ok=True)
-    scenes = visuals["scenes"]
-    total = round(tts["duration"] + r["tail_s"], 3)
+    for old in seg_dir.glob("*.mp4"):
+        old.unlink()
+    shots = visuals["shots"]
+    total = round(sum(s["duration"] for s in shots), 3)
 
     t0 = time.monotonic()
-    segs = []
-    for i, sc in enumerate(scenes):
-        length = sc["duration"] + (T if i < len(scenes) - 1 else 0)  # Puffer fuer die Ueberblendung
-        segs.append(render_segment(cfg, sc, length, seg_dir / f"seg_{i:02d}.mp4"))
-    t_segments = time.monotonic() - t0
+    segs = [render_shot(cfg, sh, seg_dir / f"shot_{i:02d}.mp4") for i, sh in enumerate(shots)]
+    t_shots = time.monotonic() - t0
 
-    # Videokette: xfade zwischen den Szenen; der Schnitt liegt jeweils auf der Szenengrenze
-    inputs, vchain, offset, prev = [], [], 0.0, "0:v"
+    t_audio = time.monotonic()
+    audio, music = prepare_audio(cfg, tts, total, visuals["scene_starts"], run)
+    t_audio = time.monotonic() - t_audio
+
+    # Harte Schnitte: Shots aneinanderhaengen, dann Untertitel einbrennen
+    inputs = []
     for s in segs:
         inputs += ["-i", str(s.relative_to(run))]
-    for i in range(1, len(segs)):
-        offset += scenes[i - 1]["duration"]
-        label = f"x{i}"
-        vchain.append(f"[{prev}][{i}:v]xfade=transition=fade:duration={T}:offset={offset:.3f}[{label}]")
-        prev = label
-    font_dir = cfg["paths"]["font_dir"]
-    vchain.append(f"[{prev}]subtitles={subs.name}:fontsdir={font_dir}[vout]")
-
-    # Audio separat vorbereiten (Ducking + Zwei-Pass-Lautheit), dann nur noch muxen
-    t_audio = time.monotonic()
-    audio, music = prepare_audio(cfg, tts, total, run)
-    t_audio = time.monotonic() - t_audio
-    inputs += ["-i", audio.name]
-
+    n = len(segs)
+    vchain = (f"{''.join(f'[{i}:v]' for i in range(n))}concat=n={n}:v=1:a=0[cat];"
+              f"[cat]subtitles={subs.name}:fontsdir={cfg['paths']['font_dir']}[vout]")
     final = run / "final.mp4"
     t1 = time.monotonic()
-    ffmpeg([*inputs, "-filter_complex", ";".join(vchain), "-map", "[vout]", "-map", f"{len(segs)}:a",
+    ffmpeg([*inputs, "-i", audio.name, "-filter_complex", vchain, "-map", "[vout]", "-map", f"{n}:a",
             *_encode_args(cfg), "-c:a", "aac", "-b:a", r["audio_bitrate"], "-t", str(total),
             "-movflags", "+faststart", final.name], cwd=run)
     t_final = time.monotonic() - t1
@@ -148,9 +199,11 @@ def render_video(cfg: dict, visuals: dict, tts: dict, subs: Path, run: Path) -> 
     v = next(s for s in info["streams"] if s["codec_type"] == "video")
     if dur >= 60 or (v["width"], v["height"]) != (r["width"], r["height"]):
         raise RuntimeError(f"Ausgabe ungueltig: {v['width']}x{v['height']}, {dur:.1f}s")
-    log.info("Render: Szenen %.1fs, Audio %.1fs, Endschnitt %.1fs, Video %.1fs",
-             t_segments, t_audio, t_final, dur)
-    return {"video": str(final), "duration": round(dur, 2), "music": music,
+    longest = max(s["duration"] for s in shots)
+    log.info("Render: %d Shots (laengster %.1fs) %.1fs, Audio %.1fs, Endschnitt %.1fs, Video %.1fs",
+             n, longest, t_shots, t_audio, t_final, dur)
+    return {"video": str(final), "duration": round(dur, 2), "music": music, "shots": n,
+            "longest_shot_s": longest,
             "loudness_lufs": round(float(_loudnorm_measure(final, r["loudness_lufs"])["input_i"]), 1),
-            "render_seconds": {"segments": round(t_segments, 1), "audio": round(t_audio, 1),
+            "render_seconds": {"shots": round(t_shots, 1), "audio": round(t_audio, 1),
                                "final": round(t_final, 1)}}

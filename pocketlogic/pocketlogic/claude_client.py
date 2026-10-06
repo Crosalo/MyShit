@@ -29,13 +29,13 @@ def _env() -> dict:
     return env
 
 
-def run_claude(prompt: str, cfg: dict) -> str:
-    """Ein Aufruf; liefert den Text aus dem `result`-Feld."""
+def run_claude(prompt: str, cfg: dict, extra_args: list[str] | None = None, cwd=None) -> str:
+    """Ein Aufruf; liefert den Text aus dem `result`-Feld. extra_args z. B. ["--allowedTools", "Read"]."""
     c = cfg["claude"]
     try:
         proc = subprocess.run(
-            [c["command"], "-p", prompt, "--output-format", "json"],
-            capture_output=True, text=True, timeout=c["timeout_seconds"], env=_env(),
+            [c["command"], "-p", prompt, "--output-format", "json", *(extra_args or [])],
+            capture_output=True, text=True, timeout=c["timeout_seconds"], env=_env(), cwd=cwd,
         )
     except subprocess.TimeoutExpired as e:
         raise ClaudeError(f"claude Timeout nach {c['timeout_seconds']}s") from e
@@ -67,7 +67,8 @@ def extract_json(text: str):
     raise ValueError("kein gueltiges JSON in der Antwort")
 
 
-def ask_json(prompt: str, cfg: dict, validate=None, attempts: int | None = None):
+def ask_json(prompt: str, cfg: dict, validate=None, attempts: int | None = None,
+             extra_args: list[str] | None = None, cwd=None):
     """Fragt Claude, parst JSON, validiert; bis zu N Retries. Bei Pro-Limit wird gewartet."""
     attempts = attempts or cfg["script"]["max_attempts"]
     waits = 0
@@ -75,7 +76,7 @@ def ask_json(prompt: str, cfg: dict, validate=None, attempts: int | None = None)
     n = 0
     while n < attempts:
         try:
-            data = extract_json(run_claude(prompt, cfg))
+            data = extract_json(run_claude(prompt, cfg, extra_args, cwd))
             return validate(data) if validate else data
         except ClaudeRateLimit as e:
             waits += 1

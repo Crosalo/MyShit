@@ -41,12 +41,12 @@ def _script(words: int, hook="Your bank loves this tiny number.", thumb="THE MIN
             highlight="TRAP") -> Script:
     body = hook + " " + " ".join(["word"] * (words - len(hook.split())))
     return Script(title="T", hook=hook, thumb_text=thumb, thumb_highlight=highlight, script=body,
-                  scenes=[{"text": "x", "search_terms": ["bank"]}] * 3,
+                  scenes=[{"text": "x", "search_terms": ["bank"]}] * 6,
                   description="Desc.", tags=["money"], category="c", format="f")
 
 
 def test_limits_ok_adds_shorts_and_disclaimer(cfg):
-    s = check_limits(_script(110), cfg)
+    s = check_limits(_script(70), cfg)
     assert "#Shorts" in s.description
     assert cfg["content"]["disclaimer"] in s.description
 
@@ -79,9 +79,9 @@ def test_subtitle_chunks_and_ass(cfg, tmp_path):
 
 
 def test_thumb_text_rules(cfg):
-    assert check_limits(_script(110, highlight="nope"), cfg).thumb_highlight == "TRAP"  # Fallback
+    assert check_limits(_script(70, highlight="nope"), cfg).thumb_highlight == "TRAP"  # Fallback
     with pytest.raises(ValueError):
-        check_limits(_script(110, thumb="WAY TOO MANY WORDS FOR A THUMBNAIL"), cfg)
+        check_limits(_script(70, thumb="WAY TOO MANY WORDS FOR A THUMBNAIL"), cfg)
 
 
 def test_clip_relevance_filter():
@@ -91,3 +91,24 @@ def test_clip_relevance_filter():
     assert not relevant("person reading bank statement", "woman, quran, read, book reading, mosque")
     assert not relevant("calculator and notebook on desk", "on air, podcast, desk, microphone, studio")
     assert relevant("stack of hundred dollar bills", "money, cash, banknote, bill, dollar, 100, usd")
+
+
+def test_split_shots_max_length():
+    from pocketlogic.visuals import split_shots
+    shots = split_shots(1.4, 9.6, 2.2)
+    assert shots[0][0] == 1.4 and shots[-1][1] == 9.6
+    assert all(b - a <= 2.2 + 1e-6 for a, b in shots)
+    assert split_shots(0, 1.0, 2.2) == [(0, 1.0)]
+
+
+def test_sfx_spacing(cfg):
+    from pocketlogic.render import sfx_times
+    t = sfx_times(cfg, [0.0, 1.0, 2.5, 3.0, 6.0])
+    assert t == [2.2, 5.7]          # 1.0 zu frueh, 3.0 zu nah an 2.5
+
+
+def test_blocked_tags():
+    from pocketlogic.visuals import blocked
+    assert blocked("cartoon, character, shopping, 3d")
+    assert blocked("fire, letters, ai generated")
+    assert not blocked("money, cash, hands, wallet")
