@@ -1,4 +1,6 @@
 """Stufe 2: Skript per Claude (HPC: Hook - Progression - Climax), validiert."""
+import re
+
 from pydantic import BaseModel, Field, ValidationError
 
 from .claude_client import ask_json
@@ -15,6 +17,7 @@ class Script(BaseModel):
     hook: str
     thumb_text: str                             # 2-5 Woerter, riesig auf Thumbnail + erstem Bild
     thumb_highlight: str                        # ein Wort daraus, wird als Sticker hervorgehoben
+    cta: str = ""                               # gesprochener Call-to-Action in der Mitte
     script: str
     scenes: list[Scene] = Field(min_length=5)
     description: str
@@ -25,6 +28,24 @@ class Script(BaseModel):
 
 def word_count(s: str) -> int:
     return len(s.split())
+
+
+def _tokens(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9$%]+", text.lower())
+
+
+def check_cta(s: Script, cfg: dict) -> None:
+    """CTA muss woertlich im Skript stehen, kurz sein und etwa in der Mitte kommen."""
+    c = cfg["cta"]
+    cta, body = _tokens(s.cta), _tokens(s.script)
+    if not 3 <= len(cta) <= c["max_words"]:
+        raise ValueError(f"CTA muss 3-{c['max_words']} Woerter haben: {s.cta!r}")
+    pos = next((i for i in range(len(body) - len(cta) + 1) if body[i:i + len(cta)] == cta), None)
+    if pos is None:
+        raise ValueError("CTA-Satz muss woertlich im Skript vorkommen")
+    rel = pos / len(body)
+    if not c["position_min"] <= rel <= c["position_max"]:
+        raise ValueError(f"CTA steht bei {rel:.0%} des Skripts, erlaubt {c['position_min']:.0%}-{c['position_max']:.0%}")
 
 
 def check_limits(s: Script, cfg: dict) -> Script:
@@ -43,6 +64,8 @@ def check_limits(s: Script, cfg: dict) -> Script:
     tw = [w.strip(".,!?").lower() for w in s.thumb_text.split()]
     if s.thumb_highlight.strip(".,!?").lower() not in tw:
         s.thumb_highlight = s.thumb_text.split()[-1]  # Fallback: letztes Wort
+    if cfg["cta"]["enabled"]:
+        check_cta(s, cfg)
     if "#Shorts" not in s.description:
         s.description += " #Shorts"
     if "financial advice" not in s.description.lower():
@@ -70,10 +93,14 @@ Structure (HPC):
 2. OPEN LOOP - within the first two sentences, tease the payoff so people stay
    (e.g. "and the last number is the one that hurts").
 3. PROGRESSION - fast, one idea per short sentence, simple math, keep tension. No filler.
+3b. CALL TO ACTION - one short spoken sentence (max {cfg['cta']['max_words']} words) at roughly the middle,
+   right before the payoff, so viewers stay for the answer. Ask to follow and to like, comment or share,
+   tied to the topic, never generic begging. Examples (do not copy): "Follow, and share this with the friend
+   who stacks coupons." / "Like this if you also thought it was 70." Then continue straight into the payoff.
 4. CLIMAX - the "aha" payoff that delivers on the hook, then a final short line that leads INTO
    the hook so the Short loops seamlessly on replay. Do NOT repeat the hook at the end; end with a
    half-sentence the hook completes (e.g. ending "...and that's exactly why" -> hook "Your bank ...").
-   No "like and subscribe", no "in conclusion".
+   No second call to action at the end, no "in conclusion".
 
 Length of "script": {length} (spoken, no stage directions, no emojis).
 
@@ -99,6 +126,7 @@ Answer ONLY with JSON:
   "hook": "...",
   "thumb_text": "...",
   "thumb_highlight": "...",
+  "cta": "the exact call-to-action sentence as it appears in the script",
   "script": "full voice-over text",
   "scenes": [{{"text": "sentence(s) from the script", "search_terms": ["1-3 English stock-footage search terms"], "card_text": "optional short on-screen text (max 6 words) or null"}}],
   "description": "first line is a hook question, then 1-2 sentences + #Shorts + 3-5 hashtags",

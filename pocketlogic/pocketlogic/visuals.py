@@ -14,6 +14,7 @@ from PIL import Image
 from . import cards
 from .render import ffmpeg
 from .runlog import published, read_log, recent
+from .subtitles import find_phrase
 
 log = logging.getLogger(__name__)
 API = "https://pixabay.com/api/videos/"
@@ -72,81 +73,82 @@ def scene_timings(scenes: list[dict], words: list[dict], audio_dur: float, tail:
     return [(round(s, 3), round(e, 3)) for s, e in zip(starts, ends)]
 
 
-class Pixabay:
-    def __init__(self, cfg: dict):
+class StockSource:
+    """Gemeinsame Basis: Such-Cache (24 h), Rate-Limit-Behandlung, Vorschaubilder, Downloads."""
+    name = "stock"
+
+    def __init__(self, cfg: dict, key_env: str):
         self.cfg = cfg
-        self.key = os.environ.get("PIXABAY_API_KEY")
+        self.key = os.environ.get(key_env)
         if not self.key:
-            raise RuntimeError("PIXABAY_API_KEY fehlt in der .env")
-        self.cache = Path(cfg["paths"]["cache_dir"]) / "pixabay"
-        (self.cache / "api").mkdir(parents=True, exist_ok=True)
-        (self.cache / "clips").mkdir(parents=True, exist_ok=True)
+            raise RuntimeError(f"{key_env} fehlt in der .env")
+        self.cache = Path(cfg["paths"]["cache_dir"]) / self.name
+        for sub in ("api", "clips", "thumbs"):
+            (self.cache / sub).mkdir(parents=True, exist_ok=True)
+
+    def _request(self, query: str) -> requests.Response:
+        raise NotImplementedError
+
+    def _parse(self, data: dict) -> list[dict]:
+        raise NotImplementedError
 
     def search(self, query: str) -> list[dict]:
-        """Suche mit 24-h-Cache (Pixabay-Vorgabe) und Rate-Limit-Pause."""
         v = self.cfg["visuals"]
         f = self.cache / "api" / (hashlib.sha1(query.lower().encode()).hexdigest() + ".json")
         if f.exists() and time.time() - f.stat().st_mtime < v["api_cache_hours"] * 3600:
             return json.loads(f.read_text())
-        params = {"key": self.key, "q": query[:100], "per_page": v["per_page"], "safesearch": "true"}
         for attempt in range(4):
             time.sleep(v["request_pause_s"])
             try:
-                r = requests.get(API, params=params, timeout=20)
+                r = self._request(query)
             except requests.RequestException as e:
-                log.warning("Pixabay-Netzwerkfehler (%s), neuer Versuch", type(e).__name__)
+                log.warning("%s-Netzwerkfehler (%s), neuer Versuch", self.name, type(e).__name__)
                 time.sleep(2 ** attempt)
                 continue
             if r.status_code == 429:
-                wait = int(r.headers.get("X-RateLimit-Reset", 30))
-                log.warning("Pixabay-Rate-Limit, warte %ss", wait)
+                wait = min(120, int(r.headers.get("X-RateLimit-Reset", r.headers.get("Retry-After", 30))))
+                log.warning("%s-Rate-Limit, warte %ss", self.name, wait)
                 time.sleep(wait)
                 continue
             if not r.ok:  # Key nie loggen: nur Statuscode ausgeben
-                raise RuntimeError(f"Pixabay HTTP {r.status_code}")
-            hits = r.json().get("hits", [])
+                raise RuntimeError(f"{self.name} HTTP {r.status_code}")
+            hits = self._parse(r.json())
             f.write_text(json.dumps(hits))
             return hits
-        raise RuntimeError("Pixabay nicht erreichbar")
+        raise RuntimeError(f"{self.name} nicht erreichbar")
 
-    def candidates(self, query: str, hits: list[dict], need: float, exclude: set[int]) -> list[dict]:
-        """Passende Clips, beste zuerst: Tags passen, Hochformat bevorzugt, lang und scharf genug, neu."""
+    def candidates(self, query: str, hits: list[dict], need: float, exclude: set) -> list[dict]:
+        """Passende Clips, beste zuerst: Hochformat bevorzugt, lang und scharf genug, neu."""
         v = self.cfg["visuals"]
         scored = []
         for rank, h in enumerate(hits):
-            tags = h.get("tags", "")
-            if (h["id"] in exclude or h.get("isAiGenerated") or h.get("isLowQuality")
-                    or blocked(tags) or not relevant(query, tags)):
+            cid = f"{self.name}:{h['id']}"
+            if cid in exclude or h.get("skip") or blocked(h["tags"]):
                 continue
-            variants = [x for x in h.get("videos", {}).values()
-                        if x.get("url") and x.get("height", 0) >= v["min_height"]
+            if h.get("check_tags", True) and not relevant(query, h["tags"]):
+                continue
+            variants = [x for x in h["variants"] if x["height"] >= v["min_height"]
                         and x.get("size", 0) <= v["max_download_mb"] * 1024 * 1024]
             if not variants:
                 continue
-            vertical = variants[0]["height"] > variants[0]["width"]
+            vertical = h["height"] > h["width"]
             # kleinste Variante, die nach dem Zuschnitt noch ~1920 px hoch ist; sonst die groesste
             enough = [x for x in variants if x["height"] >= 1920]
-            var = min(enough, key=lambda x: x["size"]) if enough else max(variants, key=lambda x: x["height"])
+            var = min(enough, key=lambda x: x["height"]) if enough else max(variants, key=lambda x: x["height"])
             score = (100 if vertical else 0) + (20 if var["height"] >= 1920 else 0) \
-                + (10 if h.get("duration", 0) >= need else 0) - rank
-            thumb = (h["videos"].get("small") or h["videos"].get("tiny") or var).get("thumbnail")
-            scored.append((score, {"id": h["id"], "url": var["url"], "duration": h.get("duration", 0),
-                                   "width": var["width"], "height": var["height"], "thumb": thumb,
-                                   "tags": tags}))
+                + (10 if h["duration"] >= need else 0) - rank
+            scored.append((score, {"id": cid, "source": self.name, "url": var["url"], "duration": h["duration"],
+                                   "width": var["width"], "height": var["height"], "thumb": h["thumb"],
+                                   "tags": h["tags"]}))
         return [c for _, c in sorted(scored, key=lambda x: -x[0])]
-
-    def pick(self, query: str, hits: list[dict], need: float, exclude: set[int]) -> dict | None:
-        found = self.candidates(query, hits, need, exclude)
-        return found[0] if found else None
 
     def thumbnail(self, clip: dict) -> Path | None:
         """Vorschaubild fuer den Bildredakteur (gecacht)."""
         if not clip.get("thumb"):
             return None
-        out = self.cache / "thumbs" / f"{clip['id']}.jpg"
+        out = self.cache / "thumbs" / f"{clip['id'].split(':')[1]}.jpg"
         if out.exists():
             return out
-        out.parent.mkdir(exist_ok=True)
         try:
             r = requests.get(clip["thumb"], timeout=20)
             r.raise_for_status()
@@ -156,7 +158,7 @@ class Pixabay:
             return None
 
     def download(self, clip: dict) -> Path:
-        out = self.cache / "clips" / f"{clip['id']}_{clip['height']}.mp4"
+        out = self.cache / "clips" / f"{clip['id'].split(':')[1]}_{clip['height']}.mp4"
         if out.exists() and out.stat().st_size > 0:
             return out
         tmp = out.with_suffix(".part")
@@ -175,7 +177,94 @@ class Pixabay:
         raise RuntimeError(f"Clip {clip['id']} nicht ladbar")
 
 
-def used_clip_ids(cfg: dict) -> set[int]:
+class Pixabay(StockSource):
+    name = "pixabay"
+
+    def __init__(self, cfg: dict):
+        super().__init__(cfg, "PIXABAY_API_KEY")
+
+    def _request(self, query):
+        return requests.get(API, timeout=20, params={
+            "key": self.key, "q": query[:100], "per_page": self.cfg["visuals"]["per_page"], "safesearch": "true"})
+
+    def _parse(self, data):
+        out = []
+        for h in data.get("hits", []):
+            vids = h.get("videos", {})
+            variants = [{"url": x["url"], "width": x["width"], "height": x["height"], "size": x.get("size", 0)}
+                        for x in vids.values() if x.get("url") and x.get("height")]
+            if not variants:
+                continue
+            first = max(variants, key=lambda x: x["height"])
+            out.append({"id": h["id"], "tags": h.get("tags", ""), "duration": h.get("duration", 0),
+                        "width": first["width"], "height": first["height"], "variants": variants,
+                        "thumb": (vids.get("small") or vids.get("tiny") or {}).get("thumbnail"),
+                        "skip": bool(h.get("isAiGenerated") or h.get("isLowQuality"))})
+        return out
+
+
+class Pexels(StockSource):
+    """Pexels: bessere Suche, viel echtes Hochformat-Material. Keine Tags -> Beschreibung aus der URL."""
+    name = "pexels"
+    API = "https://api.pexels.com/videos/search"
+
+    def __init__(self, cfg: dict):
+        super().__init__(cfg, "PEXELS_API_KEY")
+
+    def _request(self, query):
+        return requests.get(self.API, headers={"Authorization": self.key}, timeout=20, params={
+            "query": query[:100], "orientation": "portrait", "per_page": self.cfg["visuals"]["per_page"]})
+
+    def _parse(self, data):
+        out = []
+        for v in data.get("videos", []):
+            variants = [{"url": f["link"], "width": f["width"], "height": f["height"]}
+                        for f in v.get("video_files", [])
+                        if f.get("file_type") == "video/mp4" and f.get("height") and f.get("link")]
+            if not variants:
+                continue
+            slug = v.get("url", "").rstrip("/").rsplit("/", 1)[-1]
+            desc = ", ".join(w for w in slug.split("-") if not w.isdigit())
+            out.append({"id": v["id"], "tags": desc, "duration": v.get("duration", 0),
+                        "width": v["width"], "height": v["height"], "variants": variants,
+                        "thumb": v.get("image"), "check_tags": False})  # Pexels-Suche ist selbst treffsicher
+        return out
+
+
+class Sources:
+    """Alle verfuegbaren Quellen in der Reihenfolge aus der Config (z. B. erst Pexels, dann Pixabay)."""
+    TYPES = {"pexels": Pexels, "pixabay": Pixabay}
+
+    def __init__(self, cfg: dict):
+        self.cfg = cfg
+        self.items: list[StockSource] = []
+        for name in cfg["visuals"].get("sources", ["pexels", "pixabay"]):
+            try:
+                self.items.append(self.TYPES[name](cfg))
+            except (RuntimeError, KeyError) as e:
+                log.warning("Quelle %s nicht verfuegbar: %s", name, e)
+        if not self.items:
+            raise RuntimeError("keine Stock-Quelle verfuegbar")
+        self.by_name = {s.name: s for s in self.items}
+
+    def find(self, query: str, need: float, exclude: set, cap: int) -> list[dict]:
+        """Kandidaten aller Quellen zu einem Suchbegriff, je Quelle hoechstens `cap`."""
+        found = []
+        for src in self.items:
+            try:
+                found += src.candidates(query, src.search(query), need, exclude)[:cap]
+            except RuntimeError as e:
+                log.warning("Suche '%s' bei %s: %s", query, src.name, e)
+        return found
+
+    def thumbnail(self, clip: dict) -> Path | None:
+        return self.by_name[clip["source"]].thumbnail(clip)
+
+    def download(self, clip: dict) -> Path:
+        return self.by_name[clip["source"]].download(clip)
+
+
+def used_clip_ids(cfg: dict) -> set:
     entries = published(recent(read_log(cfg["paths"]["run_log"]), cfg["content"]["no_repeat_days"]))
     return {cid for e in entries for cid in (e.get("clip_ids") or [])}
 
@@ -187,30 +276,25 @@ def split_shots(start: float, end: float, max_shot: float) -> list[tuple[float, 
     return [(round(start + k * step, 3), round(start + (k + 1) * step, 3)) for k in range(n)]
 
 
-def gather_candidates(px: "Pixabay", scene: dict, limit: int, need: float, exclude: set[int],
+def gather_candidates(px: Sources, scene: dict, limit: int, need: float, exclude: set,
                       fallback: list[str] | None = None) -> list[dict]:
     """Bis zu `limit` verschiedene Kandidaten: erst Claudes Begriffe, dann Kernwort-Suchen,
-    zuletzt allgemeine Geld-Motive (fallback)."""
+    zuletzt allgemeine Geld-Motive (fallback). Pro Begriff und Quelle hoechstens die Haelfte."""
     terms = list(scene["search_terms"])
     terms += [" ".join(key_words(t)[:2]) for t in scene["search_terms"] if len(key_words(t)) > 2]
     terms += fallback or []
     found: list[dict] = []
+    cap = max(2, math.ceil(limit / 2))
     for term in terms:
-        try:
-            hits = px.search(term)
-        except RuntimeError as e:
-            log.warning("Suche '%s': %s", term, e)
-            continue
-        for c in px.candidates(term, hits, need, exclude | {f["id"] for f in found}):
-            if len(found) >= limit:
-                break
-            found.append(c)
+        for c in px.find(term, need, exclude | {f["id"] for f in found}, cap):
+            if len(found) < limit and c["id"] not in {f["id"] for f in found}:
+                found.append(c)
         if len(found) >= limit:
             break
     return found
 
 
-def contact_sheet(px: "Pixabay", cands: list[dict], out: Path) -> list[dict]:
+def contact_sheet(px: Sources, cands: list[dict], out: Path) -> list[dict]:
     """Nummerierte Vorschaubilder (3x2) fuer den Bildredakteur; liefert die gezeigten Kandidaten."""
     from PIL import ImageDraw  # lokal, wird nur hier gebraucht
     shown = [(c, px.thumbnail(c)) for c in cands]
@@ -279,7 +363,7 @@ def build_visuals(cfg: dict, topic: dict, script: dict, tts: dict, words: list[d
     out.mkdir(parents=True, exist_ok=True)
     times = scene_timings(script["scenes"], words, tts["duration"], r["tail_s"])
     try:
-        px = Pixabay(cfg)
+        px = Sources(cfg)
     except RuntimeError as e:
         log.warning("%s - nutze nur eigene Karten", e)
         px = None
@@ -388,6 +472,19 @@ def build_visuals(cfg: dict, topic: dict, script: dict, tts: dict, words: list[d
     thumb = run / "thumbnail.png"
     cards.thumbnail(cfg, script["thumb_text"], script["thumb_highlight"], frame).save(thumb)
 
+    # Call-to-Action: Einblendung genau waehrend der CTA-Satz gesprochen wird
+    cta = None
+    if cfg["cta"]["enabled"] and script.get("cta"):
+        total = times[-1][1]
+        rng = find_phrase(words, script["cta"])
+        if rng is None:
+            log.warning("CTA-Satz nicht in den Wortzeitmarken gefunden - nutze die Videomitte")
+            rng = (total * 0.45, total * 0.45 + cfg["cta"]["min_seconds"])
+        a, b = rng[0], max(rng[1] + 0.25, rng[0] + cfg["cta"]["min_seconds"])
+        ov = out / "overlay_cta.png"
+        cards.cta_overlay(cfg).save(ov)
+        cta = {"start": round(a, 3), "end": round(min(b, total), 3), "overlay": str(ov)}
+
     scene_starts = [t[0] for t in times]
-    return {"shots": shots, "scene_starts": scene_starts, "thumbnail": str(thumb),
+    return {"shots": shots, "scene_starts": scene_starts, "thumbnail": str(thumb), "cta": cta,
             "clip_ids": list(dict.fromkeys(used))}

@@ -39,8 +39,10 @@ def test_extract_json_variants():
 
 def _script(words: int, hook="Your bank loves this tiny number.", thumb="THE MINIMUM TRAP",
             highlight="TRAP") -> Script:
-    body = hook + " " + " ".join(["word"] * (words - len(hook.split())))
-    return Script(title="T", hook=hook, thumb_text=thumb, thumb_highlight=highlight, script=body,
+    cta = "Follow and share this with a friend."
+    filler = words - len(hook.split()) - len(cta.split())
+    body = f"{hook} {' '.join(['word'] * (filler // 2))} {cta} {' '.join(['word'] * (filler - filler // 2))}"
+    return Script(title="T", hook=hook, thumb_text=thumb, thumb_highlight=highlight, script=body, cta=cta,
                   scenes=[{"text": "x", "search_terms": ["bank"]}] * 6,
                   description="Desc.", tags=["money"], category="c", format="f")
 
@@ -112,3 +114,19 @@ def test_blocked_tags():
     assert blocked("cartoon, character, shopping, 3d")
     assert blocked("fire, letters, ai generated")
     assert not blocked("money, cash, hands, wallet")
+
+
+def test_find_phrase_and_cta_check(cfg):
+    from pocketlogic.script import check_cta
+    from pocketlogic.subtitles import find_phrase
+    words = [{"word": w, "start": i * 0.3, "end": i * 0.3 + 0.25}
+             for i, w in enumerate("So follow and share this with a friend now".split())]
+    assert find_phrase(words, "Follow, and share this!") == (0.3, 1.45)
+    assert find_phrase(words, "like and subscribe") is None
+    s = _script(70)
+    s.script = " ".join(["word"] * 30) + " Follow and share this with a friend. " + " ".join(["word"] * 33)
+    s.cta = "Follow and share this with a friend."
+    check_cta(s, cfg)                       # Mitte -> ok
+    s.cta = "Follow and like this video now please."
+    with pytest.raises(ValueError):
+        check_cta(s, cfg)                   # nicht woertlich im Skript

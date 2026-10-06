@@ -73,11 +73,13 @@ def render_shot(cfg: dict, shot: dict, out: Path) -> Path:
 
 # --- Audio ---------------------------------------------------------------------------------
 
-def _sfx_files(cfg: dict) -> tuple[Path, Path]:
+def _sfx_files(cfg: dict) -> tuple[Path, Path, Path]:
     """Erzeugt die Soundeffekte einmalig synthetisch (keine Lizenzfragen)."""
     d = Path(cfg["paths"]["cache_dir"]) / "sfx"
     d.mkdir(parents=True, exist_ok=True)
-    impact, whoosh = d / "impact.wav", d / "whoosh.wav"
+    impact, whoosh, pop = d / "impact.wav", d / "whoosh.wav", d / "pop.wav"
+    if not pop.exists():  # kurzer, heller "Pop" fuer die CTA-Einblendung
+        ffmpeg(["-f", "lavfi", "-i", "aevalsrc='0.8*sin(2*PI*(700+900*t)*t)*exp(-22*t)':d=0.18:s=48000", str(pop)])
     if not impact.exists():  # tiefer, kurzer Schlag mit abfallender Tonhoehe
         ffmpeg(["-f", "lavfi", "-i", "aevalsrc='0.9*sin(2*PI*(70-45*t)*t)*exp(-8*t)':d=0.45:s=48000",
                 "-af", "afade=t=out:st=0.35:d=0.1", str(impact)])
@@ -85,7 +87,7 @@ def _sfx_files(cfg: dict) -> tuple[Path, Path]:
         ffmpeg(["-f", "lavfi", "-i", "anoisesrc=d=0.45:c=pink:a=0.5:r=48000",
                 "-af", "highpass=f=500,lowpass=f=6000,afade=t=in:d=0.3:curve=exp,afade=t=out:st=0.3:d=0.15",
                 str(whoosh)])
-    return impact, whoosh
+    return impact, whoosh, pop
 
 
 def sfx_times(cfg: dict, scene_starts: list[float]) -> list[float]:
@@ -116,7 +118,8 @@ def pick_music(cfg: dict) -> Path | None:
     return random.choice(files) if files else None
 
 
-def prepare_audio(cfg: dict, tts: dict, total: float, scene_starts: list[float], run: Path) -> tuple[Path, str | None]:
+def prepare_audio(cfg: dict, tts: dict, total: float, scene_starts: list[float], run: Path,
+                  pops: list[float] | None = None) -> tuple[Path, str | None]:
     """Stimme + optional Musik (Ducking) + Soundeffekte mischen, dann exakt auf Ziel-LUFS bringen."""
     r = cfg["render"]
     lufs = r["loudness_lufs"]
@@ -136,8 +139,9 @@ def prepare_audio(cfg: dict, tts: dict, total: float, scene_starts: list[float],
         chain.append("[vo2]anullsink")
 
     if r.get("sfx"):
-        impact, whoosh = _sfx_files(cfg)
+        impact, whoosh, pop = _sfx_files(cfg)
         events = [(impact, 0.0)] + [(whoosh, t) for t in sfx_times(cfg, scene_starts)]
+        events += [(pop, t) for t in (pops or [])]
         labels = []
         for k, (f, t) in enumerate(events):
             inputs += ["-i", str(f)]
@@ -177,7 +181,9 @@ def render_video(cfg: dict, visuals: dict, tts: dict, subs: Path, run: Path) -> 
     t_shots = time.monotonic() - t0
 
     t_audio = time.monotonic()
-    audio, music = prepare_audio(cfg, tts, total, visuals["scene_starts"], run)
+    cta = visuals.get("cta")
+    audio, music = prepare_audio(cfg, tts, total, visuals["scene_starts"], run,
+                                 pops=[cta["start"]] if cta else None)
     t_audio = time.monotonic() - t_audio
 
     # Harte Schnitte: Shots aneinanderhaengen, dann Untertitel einbrennen
@@ -185,11 +191,20 @@ def render_video(cfg: dict, visuals: dict, tts: dict, subs: Path, run: Path) -> 
     for s in segs:
         inputs += ["-i", str(s.relative_to(run))]
     n = len(segs)
-    vchain = (f"{''.join(f'[{i}:v]' for i in range(n))}concat=n={n}:v=1:a=0[cat];"
-              f"[cat]subtitles={subs.name}:fontsdir={cfg['paths']['font_dir']}[vout]")
+    inputs += ["-i", audio.name]
+    vchain = f"{''.join(f'[{i}:v]' for i in range(n))}concat=n={n}:v=1:a=0[cat];"
+    if cta:  # CTA-Ebene: kurz ein- und ausblenden, nur im CTA-Zeitfenster sichtbar
+        a, b = cta["start"], cta["end"]
+        inputs += ["-loop", "1", "-i", str(Path(cta["overlay"]).resolve())]
+        vchain += (f"[{n + 1}:v]format=rgba,fade=t=in:st={a}:d=0.12:alpha=1,"
+                   f"fade=t=out:st={max(a, b - 0.15):.3f}:d=0.15:alpha=1[ct];"
+                   f"[cat][ct]overlay=0:0:enable='between(t,{a},{b})':shortest=1[cv];")
+    else:
+        vchain += "[cat]null[cv];"
+    vchain += f"[cv]subtitles={subs.name}:fontsdir={cfg['paths']['font_dir']}[vout]"
     final = run / "final.mp4"
     t1 = time.monotonic()
-    ffmpeg([*inputs, "-i", audio.name, "-filter_complex", vchain, "-map", "[vout]", "-map", f"{n}:a",
+    ffmpeg([*inputs, "-filter_complex", vchain, "-map", "[vout]", "-map", f"{n}:a",
             *_encode_args(cfg), "-c:a", "aac", "-b:a", r["audio_bitrate"], "-t", str(total),
             "-movflags", "+faststart", final.name], cwd=run)
     t_final = time.monotonic() - t1

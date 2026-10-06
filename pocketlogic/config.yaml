@@ -31,9 +31,16 @@ content:
   no_repeat_days: 60          # Thema darf nicht innerhalb dieser Tage wiederkehren
   disclaimer: "Educational content, not financial advice."
 
+cta:
+  enabled: true
+  max_words: 10                 # gesprochener CTA-Satz
+  position_min: 0.30            # Anteil des Skripts, ab dem der CTA kommen darf ...
+  position_max: 0.70            # ... und bis zu dem er gekommen sein muss
+  min_seconds: 1.8              # Einblendung mindestens so lange sichtbar
+
 script:
   words_min: 55                 # ~20-30 s: kurze Shorts halten die Zuschauer besser
-  words_max: 85
+  words_max: 95                 # inkl. CTA-Satz
   title_max_chars: 60
   hook_max_words: 9
   max_attempts: 3
@@ -50,11 +57,12 @@ claude:
   rate_limit_max_waits: 6
 
 visuals:
+  sources: ["pexels", "pixabay"] # Reihenfolge = Vorrang
   min_height: 1080              # kleinere Clips werden ignoriert
   max_download_mb: 150
-  per_page: 20                  # Treffer pro Pixabay-Suche
-  request_pause_s: 0.8          # Pixabay-Limit: 100 Anfragen / 60 s
-  api_cache_hours: 24           # Pixabay verlangt Caching der Suchergebnisse
+  per_page: 20                  # Treffer pro Suche
+  request_pause_s: 0.8          # Pixabay: 100 Anfragen/60 s, Pexels: 200/Stunde
+  api_cache_hours: 24           # Suchergebnisse 24 h cachen (Pixabay-Vorgabe, schont Limits)
   ken_burns_zoom: 1.08          # dezenter Zoom bei Standbildern
   ai_judge: true                # Claude prueft die Vorschaubilder und waehlt passende Clips
   judge_candidates: 9           # Kandidaten pro Szene auf dem Kontaktbogen (3x3)

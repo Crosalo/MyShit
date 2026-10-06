@@ -250,3 +250,57 @@ def thumbnail(cfg, text: str, highlight: str, frame: Image.Image | None = None, 
     img.alpha_composite(watermark(cfg, W, H))
     img.alpha_composite(punch_layer(cfg, text, highlight, center_y=820))
     return img.convert("RGB")
+
+
+# --- Call-to-Action: "+ FOLLOW" und Like / Comment / Share --------------------------------
+
+def _icon(kind: str, s: int, color, hole) -> Image.Image:
+    """Einfache Vektor-Icons (doppelt gross gezeichnet, dann verkleinert fuer glatte Kanten)."""
+    S = s * 2
+    im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    if kind == "like":      # Herz
+        r = S * 0.27
+        d.ellipse([S * 0.28 - r, S * 0.36 - r, S * 0.28 + r, S * 0.36 + r], fill=color)
+        d.ellipse([S * 0.72 - r, S * 0.36 - r, S * 0.72 + r, S * 0.36 + r], fill=color)
+        d.polygon([(S * 0.03, S * 0.45), (S * 0.97, S * 0.45), (S * 0.5, S * 0.95)], fill=color)
+    elif kind == "comment":  # Sprechblase mit drei Punkten
+        d.rounded_rectangle([S * 0.02, S * 0.08, S * 0.98, S * 0.74], radius=S * 0.2, fill=color)
+        d.polygon([(S * 0.22, S * 0.66), (S * 0.16, S * 0.96), (S * 0.48, S * 0.72)], fill=color)
+        for cx in (0.3, 0.5, 0.7):
+            d.ellipse([S * cx - S * 0.06, S * 0.35, S * cx + S * 0.06, S * 0.47], fill=hole)
+    else:                    # Teilen-Pfeil
+        d.polygon([(S * 0.04, S * 0.88), (S * 0.06, S * 0.62), (S * 0.2, S * 0.44), (S * 0.52, S * 0.4),
+                   (S * 0.52, S * 0.12), (S * 0.98, S * 0.5), (S * 0.52, S * 0.88), (S * 0.52, S * 0.6),
+                   (S * 0.3, S * 0.61), (S * 0.14, S * 0.7)], fill=color)
+    return im.resize((s, s), Image.LANCZOS)
+
+
+def cta_overlay(cfg, W=1080, H=1920, center_y=930) -> Image.Image:
+    """Transparente Ebene: Panel mit '+ FOLLOW'-Button und Like/Comment/Share darunter."""
+    b = cfg["brand"]
+    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    pw, ph, cx = 720, 330, 495
+    x0, y0 = cx - pw // 2, center_y - ph // 2
+    d = ImageDraw.Draw(layer)
+    d.rounded_rectangle([x0, y0, x0 + pw, y0 + ph], radius=44, fill=rgb(b["panel"]) + (238,),
+                        outline=rgb(b["accent"]) + (255,), width=4)
+    # Follow-Button
+    f = font(cfg, "bold", 64)
+    label = "+ FOLLOW"
+    tw = d.textlength(label, font=f)
+    bx0, by0 = cx - tw / 2 - 40, y0 + 34
+    d.rounded_rectangle([bx0, by0, cx + tw / 2 + 40, by0 + 96], radius=48, fill=rgb(b["accent"]))
+    d.text((cx - tw / 2, by0 + 10), label, font=f, fill=rgb(b["bg"]))
+    # Like / Comment / Share
+    lf = font(cfg, "bold", 30)
+    icon, gap = 78, 220
+    for k, (kind, text, color) in enumerate((("like", "LIKE", rgb(b["label"])),
+                                              ("comment", "COMMENT", rgb(b["ink"])),
+                                              ("share", "SHARE", rgb(b["ink"])))):
+        ix = int(cx + (k - 1) * gap)
+        layer.alpha_composite(_icon(kind, icon, color + (255,), rgb(b["panel"]) + (255,)),
+                              (ix - icon // 2, y0 + 158))
+        lw = d.textlength(text, font=lf)
+        d.text((ix - lw / 2, y0 + 248), text, font=lf, fill=rgb(b["ink"]))
+    return layer

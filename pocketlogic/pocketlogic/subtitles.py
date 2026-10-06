@@ -1,4 +1,5 @@
 """Stufe 5: .ass-Untertitel aus den Wortzeitmarken; aktives Wort in der Akzentfarbe."""
+import re
 from pathlib import Path
 
 from .cards import rgb
@@ -65,3 +66,18 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             lines.append(f"Dialogue: 0,{ass_time(start)},{ass_time(end)},Word,,0,0,0,,{pop}{' '.join(parts)}")
     out.write_text(header + "\n".join(lines) + "\n", encoding="utf-8")
     return out
+
+
+def find_phrase(words: list[dict], phrase: str) -> tuple[float, float] | None:
+    """Zeitbereich (Start erstes Wort, Ende letztes Wort) einer Phrase in den Wortzeitmarken."""
+    toks, owner = [], []
+    for i, w in enumerate(words):
+        for t in re.findall(r"[a-z0-9$%]+", w["word"].lower()):
+            toks.append(t)
+            owner.append(i)
+    target = re.findall(r"[a-z0-9$%]+", phrase.lower())
+    n = len(target)
+    for i in range(len(toks) - n + 1):
+        if toks[i:i + n] == target:
+            return words[owner[i]]["start"], words[owner[i + n - 1]]["end"]
+    return None
