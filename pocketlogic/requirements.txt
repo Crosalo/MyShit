@@ -1,0 +1,6 @@
+pyyaml>=6
+pydantic>=2
+edge-tts>=7
+requests>=2.31
+pillow>=10
+pytest>=8

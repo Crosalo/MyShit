@@ -1,0 +1,65 @@
+# Zentrale Konfiguration fuer Pocket Logic. Alle Einstellungen stehen hier.
+channel:
+  name: "Pocket Logic"
+  tagline: "Money, explained in 40 seconds"
+  language: en
+  youtube_category: 28        # Science & Technology
+  made_for_kids: false
+
+brand:                        # siehe assets/ fuer Logo
+  bg: "#120A24"
+  panel: "#221542"
+  ink: "#F5F0FF"
+  accent: "#C77DFF"           # wichtigstes Wort, Zahl, aktives Untertitelwort
+  label: "#FF5CC8"            # nur Serien-/Formatlabel
+  font_bold: "Inter-ExtraBold.otf"
+  font_medium: "Inter-Medium.otf"
+
+content:
+  categories:
+    - "Everyday spending & hidden costs"
+    - "Saving & compound interest"
+    - "Price psychology"
+    - "Taxes, inflation & fees explained"
+    - "Money myths"
+  formats:
+    - "Where does your money go?"
+    - "Myth vs. Fact"
+    - "The math behind ..."
+    - "3 money traps"
+    - "What happens if ..."
+  no_repeat_days: 60          # Thema darf nicht innerhalb dieser Tage wiederkehren
+  disclaimer: "Educational content, not financial advice."
+
+script:
+  words_min: 90
+  words_max: 130
+  title_max_chars: 70
+  hook_max_words: 12
+  max_attempts: 3
+
+tts:
+  voice: "en-US-AndrewNeural"   # klare US-Stimme; Alternativen: en-US-AriaNeural, en-US-GuyNeural
+  rate: "+8%"                   # leicht erhoehte Sprechgeschwindigkeit
+  max_seconds: 58
+
+claude:
+  command: "claude"
+  timeout_seconds: 240
+  rate_limit_wait_minutes: 20   # bei Pro-Limit spaeter erneut versuchen statt abbrechen
+  rate_limit_max_waits: 6
+
+paths:
+  data_dir: "data"
+  run_log: "data/run_log.jsonl"
+  lock_file: "data/pocketlogic.lock"
+
+retention:
+  work_days: 7                  # Clips/Zwischenschritte
+  video_days: 30                # fertige Videos
+
+schedule:
+  local_time: "07:00"
+  local_tz: "Europe/Zurich"
+  publish_time: "15:00"
+  publish_tz: "America/New_York"
