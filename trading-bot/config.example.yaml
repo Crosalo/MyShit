@@ -1,0 +1,66 @@
+# Kopieren nach config.yaml und anpassen. Passwörter/Tokens NIE hier eintragen,
+# sondern als Umgebungsvariablen (MT5_PASSWORD, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID).
+
+mt5:
+  bridge: native          # native = Windows-PC, rpyc = Linux-VPS (MT5 unter Wine + mt5linux)
+  path: null              # optional: Pfad zu terminal64.exe, falls mehrere MT5 installiert sind
+  login: null             # leer = das im Terminal bereits eingeloggte Konto verwenden
+  server: null            # z. B. FusionMarkets-Demo (nur nötig, wenn login gesetzt ist)
+  allow_live: false       # SICHERUNG: false = Bot startet nur auf DEMO-Konten
+  magic: 20261007         # Kennung der Bot-Orders; manuelle Trades werden nie angefasst
+  deviation_points: 20    # max. Slippage in Points
+  server_utc_offset_hours: auto
+
+# Kandidaten - der Scanner entscheidet selbst, wo gehandelt wird.
+# Genaue Symbolnamen deines Brokers: python -m bot.check --list
+symbols:
+  - EURUSD
+  - GBPUSD
+  - USDJPY
+  - AUDUSD
+  - XAUUSD
+
+strategy:
+  timeframe: M15
+  ema_fast: 20
+  ema_slow: 50
+  ema_trend: 200
+  adx_period: 14
+  adx_min: 20
+  atr_period: 14
+  sl_atr: 1.5             # Stop = 1,5 x ATR
+  rr: 2.0                 # Ziel = 2 x Stop
+
+scanner:
+  max_spread_atr_ratio: 0.15   # Markt nur handeln, wenn Spread < 15 % der ATR
+
+risk:
+  risk_per_trade_pct: 1.0      # max. Verlust pro Trade in % der Equity
+  max_daily_loss_pct: 3.0      # danach: alles schließen, Pause bis morgen
+  max_open_positions: 2
+  max_trades_per_day: 6
+  commission_per_lot: 4.5      # Kontowährung, Hin+Rück (Fusion Zero ~4,50 USD; Classic: 0)
+
+session:                       # alle Zeiten UTC (MESZ = UTC+2, MEZ = UTC+1)
+  trade_start: "07:00"
+  trade_end: "19:00"
+  flat_time: "20:45"           # alle Positionen schließen (keine Übernacht-Swaps)
+  friday_flat_time: "19:30"
+
+news:
+  enabled: true
+  impacts: [High]              # optional zusätzlich: Medium
+  minutes_before: 30
+  minutes_after: 30
+  refresh_minutes: 240
+  max_age_hours: 24
+  fail_closed: true            # Kalender nicht ladbar -> lieber nicht handeln
+
+telegram:
+  enabled: false
+
+loop:
+  poll_seconds: 20
+
+state_dir: state
+log_dir: logs

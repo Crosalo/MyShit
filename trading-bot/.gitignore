@@ -1,0 +1,8 @@
+config.yaml
+state/
+logs/
+data/*
+!data/.gitkeep
+.venv/
+__pycache__/
+.pytest_cache/
