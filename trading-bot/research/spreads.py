@@ -8,7 +8,6 @@ python -m research.spreads --days 2026-09-15 2026-09-16 2026-09-23
 import argparse
 import json
 import lzma
-import struct
 import time
 from datetime import date
 from pathlib import Path
