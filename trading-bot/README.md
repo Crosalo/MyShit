@@ -88,6 +88,24 @@ Alle 20 Sekunden, für jede neu geschlossene M15-Kerze:
    in `config.yaml` `telegram: enabled: true`.
 4. Befehle: `/status`, `/stop` (keine neuen Trades), `/flat` (alles schließen), `/resume`.
 
+## Strategie-Forschung auf M1 (`research/`)
+
+Sechs eigenständige Strategien aus verschiedenen Familien (Details in `research/strategies.py`):
+ORB (Eröffnungs-Ausbruch), ASIA_MR (ruhige Asien-Session), SQUEEZE (Volatilitäts-Ausbruch),
+TWAP_MR (Rückkehr zum Session-Durchschnitt), MOMO (Trend-Ausbruch), FIX_FADE (London-Fix kontern).
+Parameter sind vorab festgelegt, nicht auf die Daten optimiert.
+
+**Auf deinem PC mit MT5** (alle handelbaren Symbole, echte Fusion-Spreads):
+```bat
+python -m research.run --source mt5 --days 365
+```
+Für lange M1-Historie in MT5 vorher *Extras → Optionen → Charts → Max. Balken im Chart* auf „Unbegrenzt“ stellen.
+Ergebnis: `research_out\report.md` (Übersicht), `summary.csv`, `trades.csv.gz`.
+
+Bewertung: zählt nur, wenn im Lernzeitraum klar positiv (t ≥ 2, ≥ 30 Trades) **und** im
+unberührten Prüfzeitraum (letztes Drittel) weiterhin positiv. Kosten sind abgezogen, Trades mit
+Kosten > 20 % des Risikos werden gar nicht erst eröffnet.
+
 ## Hostinger-VPS (Stufe 2, noch nicht umgesetzt)
 
 Dein VPS (KVM 2, Ubuntu 24.04 + Docker) kann den Bot 24/5 betreiben, aber MT5 ist ein
