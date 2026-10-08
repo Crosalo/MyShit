@@ -6,12 +6,13 @@ exec > >(tee -a /config/mt5-start.log) 2>&1   # auch in die Container-Logs (Host
 echo "== $(date -u) Start"
 
 if [ ! -f "$MT5/terminal64.exe" ]; then
-  echo "Wine einrichten (ohne Mono/Gecko-Dialoge)"
+  echo "Wine einrichten (frisches Profil, ohne Mono/Gecko-Dialoge): $(wine --version)"
+  rm -rf "$WINEPREFIX"
   WINEDLLOVERRIDES="mscoree,mshtml=" wineboot -i
   wineserver -w
   wine reg add "HKEY_CURRENT_USER\\Software\\Wine" /v Version /t REG_SZ /d win10 /f
   echo "Wine Mono still installieren (sonst wartet ein Dialog auf einen Klick)"
-  wget -qO /tmp/mono.msi https://dl.winehq.org/wine/wine-mono/10.3.0/wine-mono-10.3.0-x86.msi
+  wget -qO /tmp/mono.msi https://dl.winehq.org/wine/wine-mono/9.4.0/wine-mono-9.4.0-x86.msi
   wine msiexec /i /tmp/mono.msi /qn
   wineserver -w
   echo "MT5 vom offiziellen MetaQuotes-Server installieren"
@@ -22,7 +23,9 @@ if [ ! -f "$MT5/terminal64.exe" ]; then
     [ $((i % 6)) = 0 ] && echo "warte $((i * 5)) s, offene Fenster: $(wmctrl -l 2>/dev/null | cut -c 15- | tr '\n' '|')"
     sleep 5
   done
-  sleep 30
+  # Die Standard-Bibliothek (Include/Trade/Trade.mqh) legt erst das laufende Terminal an, sonst scheitert das Kompilieren
+  for i in $(seq 1 36); do [ -f "$MT5/MQL5/Include/Trade/Trade.mqh" ] && break; sleep 5; done
+  sleep 10
   pkill -f terminal64.exe; pkill -f mt5setup.exe
   wineserver -w
   echo "MT5 installiert: $(ls "$MT5" | tr '\n' ' ')"

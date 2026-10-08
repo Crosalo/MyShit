@@ -43,7 +43,8 @@ configs:
       mkdir -pm755 /etc/apt/keyrings
       wget -qO /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
       wget -qNP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/debian/dists/bookworm/winehq-bookworm.sources
-      apt-get update; apt-get install -y --install-recommends winehq-stable
+      apt-get update   # Wine 10.0 fest: ab 10.3 meldet MT5 faelschlich "A debugger has been found" (Wine-Bug 57950)
+      apt-get install -y --install-recommends winehq-stable=10.0.0.0~bookworm-1 wine-stable=10.0.0.0~bookworm-1 wine-stable-amd64=10.0.0.0~bookworm-1 wine-stable-i386=10.0.0.0~bookworm-1
   autostart:
     content: |
       bash /bot/start.sh &

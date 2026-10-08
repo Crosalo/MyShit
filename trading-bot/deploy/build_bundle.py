@@ -25,9 +25,17 @@ SECRET = Path.home() / "claude/vps-mt5-zugang.txt"
 HERE = Path(__file__).parent
 
 
+# Stand der Live-Charts vom 07.10.2026 (BBFade v1.30 auf NAS100 und US30 M15), falls die Charts nicht mehr da sind
+BBFADE_INPUTS = ["InpUseFixedLot=false", "InpLots=0.01", "InpUseFixedEUR=true", "InpRiskEUR=3.0", "InpRiskPct=12.0",
+                 "InpMaxRiskPct=20.0", "InpBBLength=20", "InpBBMult=2.0", "InpATRLength=14", "InpStopMult=2.0",
+                 "InpMaxBars=16", "InpMaxSpreadPts=0", "InpMarginBuffer=0.5", "InpMagic=20260922", "InpComment=BBFade",
+                 "InpUseH1Filter=true", "InpH1EmaLen=200", "InpCorrGroup=NAS100,US500,US30", "InpMaxCorrPos=2"]
+
+
 def chart_inputs(chr_name: str) -> list[str]:
-    t = (MT5 / "Profiles/Charts/Default" / chr_name).read_text(encoding="utf-16")
-    return re.search(r"<expert>.*?<inputs>\n(.*?)</inputs>", t, re.S).group(1).strip().splitlines()
+    f = MT5 / "Profiles/Charts/Default" / chr_name
+    m = re.search(r"<expert>.*?<inputs>\n(.*?)</inputs>", f.read_text(encoding="utf-16"), re.S) if f.exists() else None
+    return m.group(1).strip().splitlines() if m else BBFADE_INPUTS
 
 
 def template(symbol: str, minutes: int, ea: str, inputs: list[str]) -> bytes:
