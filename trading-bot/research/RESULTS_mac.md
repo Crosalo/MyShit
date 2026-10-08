@@ -43,7 +43,7 @@ D1 ab 1997. Aktien-CFDs (104 Stück, 0 Kommission, Mindestlot 0,1): M5 ~5 Jahre.
 | TradeX-TV, Livestream | – | nicht prüfbar (Ermessen, eigene Indikatoren) |
 | Urban Forex, ATR + Sessions | – | nicht prüfbar (keine Untertitel) |
 | IQCapital, Robbins-Cup-Orderflow | – | nicht prüfbar (braucht Bid/Ask-Delta und Options-Gamma, CFDs haben nur Tick-Volumen) |
-| TradingFreaks, SR-Channel-Zonen 1:1 | B: 31 Märkte D1 1997–2026, H4 2019–2026 | siehe unten |
+| TradingFreaks, SR-Channel-Zonen 1:1 | B: 31 Märkte D1 1997–2026, H4 2019–2026 | Treffer 48 % statt behaupteter 60–65 %; D1 −0,08R (t=−6,0), 6.331 Trades; H4 −0,09R; auch ohne Finanzierung negativ |
 | Craig Percoco, M15-Struktur + M1-CHoCH + FVG | C: US-Indizes M1 11/2020–10/2026 | −0,18R (t=−4,7), 1.743 Trades |
 | TwinTraders, 1-Min-Scalping (H1-FVG → M5 → M1) | D: US-Indizes M1 11/2020–10/2026 | US100 −0,009R (t=−0,2), 931 Trades |
 | CodeTrading, KI-Modell Kronos auf Gold | – | der Autor testet selbst: 19 von 20 Prüfungen durchgefallen |
