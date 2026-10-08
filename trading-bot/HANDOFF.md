@@ -43,6 +43,14 @@ Märkte wählen und handeln. Später 24/5 auf dem **Hostinger-VPS** (KVM 2, Ubun
   (QuiverQuant). Falls er Strategien nachreicht: als feste Regeln festhalten und genauso testen.
 - Der MT5-Test auf dem PC ist die letzte Gegenprobe mit echten Fusion-Kosten. Erwartung: gleiches Urteil.
 
+## Mac-Session mit echten Fusion-Daten (07.–08.10.2026)
+- Ergebnis: `research/RESULTS_mac.md`. Alle getesteten Strategien (Cloud-Set, 11 YouTube-Strategien,
+  ~1.000 Kombinationen, M1–M30, Intraday-Momentum, Noise Boundary) haben nach Kosten keinen Vorteil.
+- Auf dem Mac läuft MT5 unter Wine: Daten über `mql5/Scripts/ExportBars.mq5` exportieren und mit
+  `--source mt5files` lesen. Das MT5-Konto auf dem Mac ist ein ECHTGELD-Konto mit laufenden MQL5-EAs
+  (BB-Fade NAS100/US30, Opening Range NAS100) – dort nichts starten, was handelt.
+- Vor großen Exporten Plattenplatz prüfen (am 08.10. lief die Platte voll, MT5 hing).
+
 ## Wie der Nutzer kommuniziert werden will
 Deutsch. Als ehrlicher Berater, nicht als Ja-Sager: unbequeme Wahrheit zuerst,
 Aussagen mit [Certain]/[Likely]/[Guessing] kennzeichnen, bei Widerspruch nicht

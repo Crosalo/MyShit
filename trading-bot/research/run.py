@@ -2,6 +2,8 @@
 
 Auf dem PC mit MT5 (echte Fusion-Daten, alle handelbaren Symbole):
     python -m research.run --source mt5 --days 365 --tf 15
+Auf dem Mac (MT5 unter Wine): erst das MQL5-Skript ExportBars (M1) laufen lassen, dann
+    python -m research.run --source mt5files --data "<MQL5>/Files/m1export" --tf 15
 Offline mit freien Daten (HistData + gemessene Dukascopy-Spreads), inkl. älterer Jahre als VAL:
     python -m research.run --source histdata --tf 15 --val-folder data/histdata_old
 
@@ -181,7 +183,8 @@ def write_report(summary, trades, split, out: Path, source: str, equity: float, 
 
 def main(argv=None):
     p = argparse.ArgumentParser()
-    p.add_argument("--source", choices=["histdata", "mt5"], required=True)
+    p.add_argument("--source", choices=["histdata", "mt5", "mt5files"], required=True)
+    p.add_argument("--file-tf", default="M1", help="nur mt5files: Zeitrahmen der Export-Dateien (Basis, Standard M1)")
     p.add_argument("--tf", type=int, choices=sorted(TF_PARAMS), default=1)
     p.add_argument("--set", dest="strategy_set", choices=["base", "combos"], default="base",
                    help="base = 6 Einzelstrategien, combos = 9 festgelegte Kombinationen")
@@ -199,6 +202,10 @@ def main(argv=None):
     if args.source == "histdata":
         source = iter_histdata(data / "histdata", data / "spreads.json", data / "m1", args.symbols,
                                Path(args.val_folder) if args.val_folder else None)
+    elif args.source == "mt5files":
+        from .mt5_files import iter_mt5_files
+        source = ((i, d, s, src, None) for i, d, s, src in
+                  iter_mt5_files(data, load_config(args.config), args.symbols, args.file_tf))
     else:
         from .mt5_source import iter_mt5
         source = ((i, d, s, src, None) for i, d, s, src in iter_mt5(load_config(args.config), args.days, args.symbols))
