@@ -1,0 +1,55 @@
+# MT5 im Browser auf dem Hostinger-VPS. Wird von deploy/build_bundle.py ausgefüllt (Startskript; EA-Paket kommt als Variable BUNDLE).
+# Zugang: https://<VPS-IP>:3001 (selbstsigniertes Zertifikat), Benutzer/Passwort aus VNC_USER/VNC_PASSWORD.
+name: mt5
+services:
+  mt5:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM ghcr.io/linuxserver/baseimage-kasmvnc:debianbookworm-073569bb-ls1
+        ENV TITLE=MetaTrader5
+        RUN dpkg --add-architecture i386 && apt-get update \
+         && apt-get install -y --no-install-recommends wget gnupg ca-certificates cabextract xz-utils procps \
+         && mkdir -pm755 /etc/apt/keyrings \
+         && wget -qO /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key \
+         && wget -qNP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/debian/dists/bookworm/winehq-bookworm.sources \
+         && apt-get update && apt-get install -y --install-recommends winehq-stable \
+         && rm -rf /var/lib/apt/lists/*
+    image: mt5-wine:local
+    restart: unless-stopped
+    shm_size: "1gb"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - CUSTOM_USER=${VNC_USER}
+      - PASSWORD=${VNC_PASSWORD}
+      - BUNDLE=${BUNDLE}
+    ports:
+      - "3001:3001"
+    volumes:
+      - mt5config:/config
+    configs:
+      - source: autostart
+        target: /defaults/autostart
+        mode: 0755
+      - source: start
+        target: /bot/start.sh
+        mode: 0755
+      - source: bundle2
+        target: /bot/bundle2.b64
+
+configs:
+  autostart:
+    content: |
+      bash /bot/start.sh &
+  start:
+    content: |
+__START__
+
+  bundle2:
+    content: |
+__BUNDLE2__
+
+volumes:
+  mt5config:
