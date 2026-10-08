@@ -50,8 +50,8 @@ def iter_mt5_files(folder: Path, cfg: dict, symbols: list[str] | None, tf: str =
     profiles = json.loads(profile_file.read_text()) if profile_file.exists() else {}
     print(f"Export aus {meta.get('server')}, Serverzeit UTC{offset:+g}, NY-Close-Server: {ny_close}", flush=True)
     suffix = f"_{tf}.csv"
-    for csv in sorted(folder.glob(f"*{suffix}")):
-        name = csv.name[: -len(suffix)]
+    for csv in sorted(folder.glob(f"*{suffix}*")):  # .csv oder gepackt .csv.gz
+        name = csv.name[: csv.name.index(suffix)]
         if symbols and name not in symbols:
             continue
         spec_file = folder / f"{name}_spec.json"

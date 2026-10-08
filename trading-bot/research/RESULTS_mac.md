@@ -35,6 +35,26 @@ D1 ab 1997. Aktien-CFDs (104 Stück, 0 Kommission, Mindestlot 0,1): M5 ~5 Jahre.
 
 **Fazit: Auf den Fusion-CFDs hat keine getestete Daytrading-Strategie nach Kosten einen Vorteil.**
 
+## Acht weitere Videos (08.10.2026 abends, `research.videos_oct8`)
+
+| Video | Test | Ergebnis |
+|---|---|---|
+| Tradermacher, EMA20-Pullback H1 (Swing, long) | A: 8 Aktien aus dem Video, 2021–2026 | −0,51R (t=−3,6), 81 Trades; alle 70 Aktien −0,41R |
+| TradeX-TV, Livestream | – | nicht prüfbar (Ermessen, eigene Indikatoren) |
+| Urban Forex, ATR + Sessions | – | nicht prüfbar (keine Untertitel) |
+| IQCapital, Robbins-Cup-Orderflow | – | nicht prüfbar (braucht Bid/Ask-Delta und Options-Gamma, CFDs haben nur Tick-Volumen) |
+| TradingFreaks, SR-Channel-Zonen 1:1 | B: 31 Märkte D1 1997–2026, H4 2019–2026 | siehe unten |
+| Craig Percoco, M15-Struktur + M1-CHoCH + FVG | C: US-Indizes M1 11/2020–10/2026 | −0,18R (t=−4,7), 1.743 Trades |
+| TwinTraders, 1-Min-Scalping (H1-FVG → M5 → M1) | D: US-Indizes M1 11/2020–10/2026 | US100 −0,009R (t=−0,2), 931 Trades |
+| CodeTrading, KI-Modell Kronos auf Gold | – | der Autor testet selbst: 19 von 20 Prüfungen durchgefallen |
+
+**Zwei Scheingewinner in der ersten Rechnung, beide durch Ausführungsfehler:**
+- C zeigte erst +0,15R (t=3,0). Fehler: Kerze, die das Limit füllt UND den Stop trifft, wurde als
+  "Setup ungültig" verworfen statt als −1R gebucht. Damit fielen 505 Verlierer heraus.
+- A zeigte erst +0,48R. Fehler: Stop unter dem Tief der Einstiegskerze, obwohl dieses Tief nach dem
+  Einstieg entstehen kann. Mit dem Tief bis vor der Einstiegskerze: −0,51R.
+- Prüfregel: Limit-Füllung immer vor dem Stop prüfen; Stop nur aus Kursen VOR dem Einstieg setzen.
+
 ## Fallen, die schon einmal Scheinergebnisse erzeugt haben
 - **Werte aus höheren Zeitrahmen nur von FERTIGEN Kerzen nehmen** (Kerzenende <= Signalzeit).
   Die laufende H1-Kerze im Kursziel machte TwinTraders scheinbar profitabel (t=3,8 statt −0,2).
