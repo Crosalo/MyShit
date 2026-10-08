@@ -2,7 +2,7 @@
 # MT5 unter Wine einrichten und starten (Benutzer abc). Login und Algo-Haken macht Carlos selbst.
 export WINEPREFIX=/config/.wine WINEDEBUG=-all
 MT5="$WINEPREFIX/drive_c/Program Files/MetaTrader 5"
-exec >>/config/mt5-start.log 2>&1
+exec > >(tee -a /config/mt5-start.log) 2>&1   # auch in die Container-Logs (Hostinger-Panel/API)
 echo "== $(date -u) Start"
 
 if [ ! -f "$MT5/terminal64.exe" ]; then
@@ -10,10 +10,18 @@ if [ ! -f "$MT5/terminal64.exe" ]; then
   WINEDLLOVERRIDES="mscoree,mshtml=" wineboot -i
   wineserver -w
   wine reg add "HKEY_CURRENT_USER\\Software\\Wine" /v Version /t REG_SZ /d win10 /f
+  echo "Wine Mono still installieren (sonst wartet ein Dialog auf einen Klick)"
+  wget -qO /tmp/mono.msi https://dl.winehq.org/wine/wine-mono/10.3.0/wine-mono-10.3.0-x86.msi
+  wine msiexec /i /tmp/mono.msi /qn
+  wineserver -w
   echo "MT5 vom offiziellen MetaQuotes-Server installieren"
   wget -qO /tmp/mt5setup.exe https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe
   wine /tmp/mt5setup.exe /auto &
-  for i in $(seq 1 180); do [ -f "$MT5/terminal64.exe" ] && break; sleep 5; done
+  for i in $(seq 1 180); do
+    [ -f "$MT5/terminal64.exe" ] && break
+    [ $((i % 6)) = 0 ] && echo "warte $((i * 5)) s, offene Fenster: $(wmctrl -l 2>/dev/null | cut -c 15- | tr '\n' '|')"
+    sleep 5
+  done
   sleep 30
   pkill -f terminal64.exe; pkill -f mt5setup.exe
   wineserver -w

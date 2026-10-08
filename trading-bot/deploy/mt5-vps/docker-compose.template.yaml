@@ -3,19 +3,7 @@
 name: mt5
 services:
   mt5:
-    build:
-      context: .
-      dockerfile_inline: |
-        FROM ghcr.io/linuxserver/baseimage-kasmvnc:debianbookworm-073569bb-ls1
-        ENV TITLE=MetaTrader5
-        RUN dpkg --add-architecture i386 && apt-get update \
-         && apt-get install -y --no-install-recommends wget gnupg ca-certificates cabextract xz-utils procps \
-         && mkdir -pm755 /etc/apt/keyrings \
-         && wget -qO /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key \
-         && wget -qNP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/debian/dists/bookworm/winehq-bookworm.sources \
-         && apt-get update && apt-get install -y --install-recommends winehq-stable \
-         && rm -rf /var/lib/apt/lists/*
-    image: mt5-wine:local
+    image: ghcr.io/linuxserver/baseimage-kasmvnc:debianbookworm-073569bb-ls1
     restart: unless-stopped
     shm_size: "1gb"
     environment:
@@ -30,6 +18,9 @@ services:
     volumes:
       - mt5config:/config
     configs:
+      - source: wine
+        target: /custom-cont-init.d/10-wine.sh
+        mode: 0755
       - source: autostart
         target: /defaults/autostart
         mode: 0755
@@ -40,6 +31,19 @@ services:
         target: /bot/bundle2.b64
 
 configs:
+  wine:
+    content: |
+      #!/bin/bash
+      # Hostinger baut keine Images: Wine beim ersten Start installieren (laeuft als root vor dem Desktop)
+      command -v wine >/dev/null && exit 0
+      export DEBIAN_FRONTEND=noninteractive
+      rm -f /etc/apt/sources.list.d/nodesource*   # kaputte Quelle im Basis-Image (404) bricht apt-get update ab
+      dpkg --add-architecture i386; apt-get update
+      apt-get install -y --no-install-recommends wget gnupg ca-certificates cabextract xz-utils procps wmctrl
+      mkdir -pm755 /etc/apt/keyrings
+      wget -qO /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
+      wget -qNP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/debian/dists/bookworm/winehq-bookworm.sources
+      apt-get update; apt-get install -y --install-recommends winehq-stable
   autostart:
     content: |
       bash /bot/start.sh &
