@@ -102,7 +102,7 @@ python -m research.run --source mt5 --days 365 --tf 60
 Bisherige Offline-Ergebnisse: `research/RESULTS_histdata.md` (M1) und `research/RESULTS_timeframes.md`
 (M1/M15/H1 inkl. Validierung auf 2024-2025). Kurz: Keine der 6 Strategien hat einen Vorteil.
 Für lange M1-Historie in MT5 vorher *Extras → Optionen → Charts → Max. Balken im Chart* auf „Unbegrenzt“ stellen.
-Ergebnis: `research_out\report.md` (Übersicht), `summary.csv`, `trades.csv.gz`.
+Ergebnis: `research_out\tf60\report.md` (Übersicht), `summary.csv`, `trades.csv.gz`.
 
 Bewertung: zählt nur, wenn im Lernzeitraum klar positiv (t ≥ 2, ≥ 30 Trades) **und** im
 unberührten Prüfzeitraum (letztes Drittel) weiterhin positiv. Kosten sind abgezogen, Trades mit
