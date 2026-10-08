@@ -39,10 +39,11 @@ def features(ctx: Context, tf: int) -> dict:
     lookback = TF_PARAMS[tf].get("SQUEEZE", {}).get("squeeze_lookback", 240)
     compressed = (bw.shift(1) < bw.rolling(lookback).median().shift(1) * 0.8).to_numpy()
 
-    # Abstand zum Tagesdurchschnittspreis (Session ab London 08:00 bzw. Index-Eröffnung)
+    # Abstand zum Tagesdurchschnittspreis (ab London 08:00 bzw. Index-Eröffnung, 10 Stunden,
+    # damit der London-Fix um 16:00 abgedeckt ist)
     tz, hhmm = ctx.inst.sessions[0] if ctx.inst.asset == "index" else ("Europe/London", "08:00")
     day, mins = ctx.local(tz)
-    in_sess = (mins >= _hhmm(hhmm)) & (mins < _hhmm(hhmm) + 480)
+    in_sess = (mins >= _hhmm(hhmm)) & (mins < _hhmm(hhmm) + 600)
     grp = np.where(in_sess, day, -1)
     typical = pd.Series(np.where(in_sess, (ctx.h + ctx.l + ctx.c) / 3, 0.0))
     twap = (typical.groupby(grp).cumsum() / (typical.groupby(grp).cumcount() + 1)).to_numpy()

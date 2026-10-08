@@ -200,3 +200,16 @@ def test_evaluate_combos_smoke():
                             df["time"].iloc[20000], 19.0, tf=15, strategy_set="combos")
     from research.combos import build
     assert [r["strategy"] for r in rows] == list(build(Context(df.iloc[:500], BY_NAME["EURUSD"]), 15))
+
+
+@pytest.mark.parametrize("tf", [1, 15, 60])
+def test_stretch_filter_is_defined_at_fix_time(tf):
+    from research.combos import features
+    from research.strategies import TF_PARAMS, _hhmm
+    from research.timeframes import resample
+    bars = resample(_m1(n=60000, seed=13), tf)
+    ctx = Context(bars, BY_NAME["EURUSD"])
+    _, mins = ctx.local("Europe/London")
+    signal_min = _hhmm(TF_PARAMS[tf].get("FIX_FADE", {}).get("signal", "16:02"))
+    dev = features(ctx, tf)["dev"]
+    assert np.any(dev[mins == signal_min] != 0)
