@@ -95,10 +95,12 @@ ORB (Eröffnungs-Ausbruch), ASIA_MR (ruhige Asien-Session), SQUEEZE (Volatilitä
 TWAP_MR (Rückkehr zum Session-Durchschnitt), MOMO (Trend-Ausbruch), FIX_FADE (London-Fix kontern).
 Parameter sind vorab festgelegt, nicht auf die Daten optimiert.
 
-**Auf deinem PC mit MT5** (alle handelbaren Symbole, echte Fusion-Spreads):
+**Auf deinem PC mit MT5** (alle handelbaren Symbole, echte Fusion-Spreads; `--tf 1`, `15` oder `60`):
 ```bat
-python -m research.run --source mt5 --days 365
+python -m research.run --source mt5 --days 365 --tf 60
 ```
+Bisherige Offline-Ergebnisse: `research/RESULTS_histdata.md` (M1) und `research/RESULTS_timeframes.md`
+(M1/M15/H1 inkl. Validierung auf 2024-2025). Kurz: Keine der 6 Strategien hat einen Vorteil.
 Für lange M1-Historie in MT5 vorher *Extras → Optionen → Charts → Max. Balken im Chart* auf „Unbegrenzt“ stellen.
 Ergebnis: `research_out\report.md` (Übersicht), `summary.csv`, `trades.csv.gz`.
 

@@ -25,16 +25,18 @@ Märkte wählen und handeln. Später 24/5 auf dem **Hostinger-VPS** (KVM 2, Ubun
 1. Python 3.12, `cd trading-bot`, `pip install -r requirements.txt`, `copy config.example.yaml config.yaml`
 2. MT5: Demokonto eingeloggt, Algo-Trading an, *Optionen → Charts → Max. Balken* = Unbegrenzt
 3. `python -m bot.check` (Konto, Symbole, Spreads)
-4. `python -m research.run --source mt5 --days 365` → testet **alle handelbaren Symbole** auf M1
-   mit echten Fusion-Spreads → `research_out/report.md`
+4. `python -m research.run --source mt5 --days 365 --tf 60` (auch `--tf 15`, `--tf 1`) → testet
+   **alle handelbaren Symbole** mit echten Fusion-Spreads → `research_out/tf60/report.md`
 5. Bericht mit dem Nutzer ehrlich auswerten. Eine Strategie zählt nur, wenn sie IS t ≥ 2, ≥ 30 Trades
    **und** OOS positiv erreicht. Vorsicht vor Zufallstreffern bei vielen Kombinationen.
    Keine Parameter auf den Prüfzeitraum optimieren.
 
 ## Offline-Ergebnisse aus der Cloud (HistData + gemessene Dukascopy-Spreads)
-Siehe `research/RESULTS_histdata.md`, falls vorhanden. Erster Teiltest auf EURUSD und GBPUSD:
-keine Kombination besteht beide Zeiträume. Auf M1 frisst der Kostenfilter die meisten Signale
-mit ATR-Stops, weil Spread und Kommission im Verhältnis zum Stop zu teuer sind.
+- `research/RESULTS_histdata.md`: M1, 30 Märkte. Nichts funktioniert, die Kosten (~0,1 R/Trade) fressen alles.
+- `research/RESULTS_timeframes.md`: M1, M15 und H1 inkl. Validierung auf Jan 2024 - Sep 2025.
+  **Alle 18 Kombinationen sind im Validierungszeitraum negativ.** Vor Kosten liegen alle Ideen bei
+  ~0 R, haben also keinen Vorteil. Zwei H1-Kandidaten (TWAP_MR, FIX_FADE) waren Zufall.
+- Der MT5-Test auf dem PC ist die letzte Gegenprobe mit echten Fusion-Kosten. Erwartung: gleiches Urteil.
 
 ## Wie der Nutzer kommuniziert werden will
 Deutsch. Als ehrlicher Berater, nicht als Ja-Sager: unbequeme Wahrheit zuerst,

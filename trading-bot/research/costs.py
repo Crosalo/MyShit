@@ -17,10 +17,11 @@ from .timeframes import resample, to_m1
 SCENARIOS = (("vor_kosten", 0.0, False), ("halber_spread", 0.5, True), ("volle_kosten", 1.0, True))
 
 
-def breakdown(tf: int, data: Path, min_cost_ratio: float = 5.0) -> dict:
+def breakdown(tf: int, data: Path, folder: str = "histdata", cache_suffix: str = "",
+              min_cost_ratio: float = 5.0) -> dict:
     res = {name: {s[0]: [] for s in SCENARIOS} for name in STRATEGIES}
     for inst in UNIVERSE:
-        m1 = load_histdata(inst, data / "histdata", data / "m1" / f"{inst.name}.pkl")
+        m1 = load_histdata(inst, data / folder, data / "m1" / f"{inst.name}{cache_suffix}.pkl")
         if m1 is None:
             continue
         spread, _ = spread_array(m1, inst, data / "spreads.json")
@@ -44,8 +45,9 @@ def main(argv=None):
     p = argparse.ArgumentParser()
     p.add_argument("--tf", type=int, default=1)
     p.add_argument("--data", default="data")
+    p.add_argument("--val", action="store_true", help="ältere Jahre (data/histdata_old) statt aktuelles Jahr")
     args = p.parse_args(argv)
-    res = breakdown(args.tf, Path(args.data))
+    res = breakdown(args.tf, Path(args.data), *(("histdata_old", "_val") if args.val else ("histdata", "")))
     print("| Strategie | Trades | vor Kosten | halber Spread | volle Kosten |")
     print("|---|---|---|---|---|")
     for name, d in res.items():
