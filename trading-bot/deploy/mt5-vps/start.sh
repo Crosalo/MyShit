@@ -43,6 +43,24 @@ for f in BBFade TwinScalp; do
   echo "$f: $(iconv -f UTF-16LE -t UTF-8 "MQL5/Experts/$f.log" 2>/dev/null | grep -a Result)"
 done
 
+# MT5-Journal und EA-Logs (UTF-16) alle 30 s in die Container-Logs kopieren, damit sie per Hostinger-API lesbar sind
+logpump() {
+  while true; do
+    for f in "$MT5/logs/$(date -u +%Y%m%d).log" "$MT5/MQL5/Logs/$(date -u +%Y%m%d).log"; do
+      [ -f "$f" ] || continue
+      k=/tmp/off_$(echo "$f" | md5sum | cut -c1-8); off=$(cat "$k" 2>/dev/null || echo 0); size=$(stat -c %s "$f")
+      [ "$size" -lt "$off" ] && off=0
+      if [ "$size" -gt "$off" ]; then
+        tag=$(basename "$(dirname "$f")")
+        tail -c +$((off + 1)) "$f" | iconv -f UTF-16LE -t UTF-8 2>/dev/null | tr -d '\r' | sed -e 's/\xEF\xBB\xBF//g' -e "s|^|[$tag] |"
+        echo "$size" > "$k"
+      fi
+    done
+    sleep 30
+  done
+}
+logpump &
+
 echo "Terminal starten (startet nach Absturz neu)"
 while true; do
   wine "$MT5/terminal64.exe"
