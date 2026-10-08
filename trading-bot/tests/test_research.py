@@ -173,3 +173,30 @@ def test_orb_trades_on_every_timeframe(tf):
     assert ctx.tf_min == tf
     sig = STRATEGIES["ORB"](ctx, **TF_PARAMS[tf].get("ORB", {}))
     assert (sig.long | sig.short).sum() >= 5
+
+
+@pytest.mark.parametrize("tf", [1, 15])
+def test_combos_are_filters_of_base_and_have_no_lookahead(tf):
+    from research.combos import build
+    from research.strategies import TF_PARAMS
+    from research.timeframes import resample
+    bars = resample(_m1(n=60000, seed=12), tf)
+    inst = BY_NAME["EURUSD"]
+    cut = int(len(bars) * 0.7)
+    full = build(Context(bars, inst), tf)
+    part = build(Context(bars.iloc[:cut].reset_index(drop=True), inst), tf)
+    base_orb = STRATEGIES["ORB"](Context(bars, inst), **TF_PARAMS[tf].get("ORB", {}))
+    for sig in full["ORB+TREND"] + full["ORB+COMPRESSED"]:
+        assert not (sig.long & ~base_orb.long).any() and not (sig.short & ~base_orb.short).any()
+    assert len(full["ALL6"]) == 6 and len(full["REGIME"]) == 6
+    for name in full:
+        for a, b in zip(full[name], part[name]):
+            assert np.array_equal(a.long[:cut], b.long) and np.array_equal(a.short[:cut], b.short), name
+
+
+def test_evaluate_combos_smoke():
+    df = _m1(n=30000)
+    rows, trades = evaluate(BY_NAME["EURUSD"], df, np.full(len(df), 0.00002), "test",
+                            df["time"].iloc[20000], 19.0, tf=15, strategy_set="combos")
+    from research.combos import build
+    assert [r["strategy"] for r in rows] == list(build(Context(df.iloc[:500], BY_NAME["EURUSD"]), 15))

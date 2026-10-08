@@ -15,6 +15,9 @@ import numpy as np
 import pandas as pd
 
 
+TRADE_COLUMNS = ["signal", "entry_bar", "exit_bar", "dir", "entry", "exit", "sl_dist", "r", "reason"]
+
+
 @dataclass
 class Signals:
     long: np.ndarray  # bool
@@ -94,8 +97,7 @@ def simulate(o, h, l, c, spread, force_exit, sig: Signals, commission_price: flo
         pnl = (exit_ - entry) * direction - commission_price
         rows.append((s, e, k, int(direction), entry, exit_, sd, pnl / sd, reason))
         busy_until = k
-    trades = pd.DataFrame(rows, columns=["signal", "entry_bar", "exit_bar", "dir", "entry",
-                                         "exit", "sl_dist", "r", "reason"])
+    trades = pd.DataFrame(rows, columns=TRADE_COLUMNS)
     return trades, skipped_cost
 
 

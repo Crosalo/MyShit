@@ -19,7 +19,7 @@ import pandas as pd
 
 from bot.config import load_config
 from .data import load_histdata, spread_array
-from .engine import force_exit_mask, simulate, stats
+from .engine import TRADE_COLUMNS, force_exit_mask, simulate, stats
 from .instruments import UNIVERSE
 from .strategies import STRATEGIES, TF_PARAMS, Context
 from .timeframes import resample, to_m1
@@ -44,16 +44,31 @@ def iter_histdata(folder: Path, spreads: Path, cache: Path, symbols, val_folder:
         yield inst, df, spread, src, val
 
 
-def run_strategies(inst, m1: pd.DataFrame, spread: np.ndarray, tf: int) -> dict:
-    """{Strategie: (Trades, abgelehnt wegen Kosten)} auf einem Datensatz."""
+def run_strategies(inst, m1: pd.DataFrame, spread: np.ndarray, tf: int, strategy_set: str = "base") -> dict:
+    """{Strategie: (Trades, abgelehnt wegen Kosten)} auf einem Datensatz.
+
+    Eine Kombination kann aus mehreren Signal-Sätzen bestehen (Portfolio); deren Trades werden zusammengelegt.
+    """
     bars = resample(m1, tf)
     ctx = Context(bars, inst)
     o, h, l, c = (m1[k].to_numpy(float) for k in ("open", "high", "low", "close"))
     fx = force_exit_mask(m1["time"])
+    if strategy_set == "combos":
+        from .combos import build
+        groups = build(ctx, tf)
+    else:
+        groups = {name: [fn(ctx, **TF_PARAMS[tf].get(name, {}))] for name, fn in STRATEGIES.items()}
     out = {}
-    for name, fn in STRATEGIES.items():
-        sig = to_m1(fn(ctx, **TF_PARAMS[tf].get(name, {})), bars["time"], m1["time"], tf)
-        trades, skipped = simulate(o, h, l, c, spread, fx, sig, inst.commission_price)
+    for name, sigs in groups.items():
+        parts, skipped = [], 0
+        for sig_tf in sigs:
+            sig = to_m1(sig_tf, bars["time"], m1["time"], tf)
+            t, sk = simulate(o, h, l, c, spread, fx, sig, inst.commission_price)
+            skipped += sk
+            if len(t):
+                parts.append(t)
+        trades = (pd.concat(parts, ignore_index=True).sort_values("entry_bar", kind="stable").reset_index(drop=True)
+                  if parts else pd.DataFrame(columns=TRADE_COLUMNS))
         if len(trades):
             trades["time"] = m1["time"].iloc[trades["entry_bar"]].to_numpy()
         out[name] = (trades, skipped)
@@ -64,10 +79,10 @@ def _months(times: pd.Series) -> float:
     return (times.iloc[-1] - times.iloc[0]).days / 30.44 if len(times) > 1 else 0.0
 
 
-def evaluate(inst, df, spread, src, split, equity, tf=1, val=None):
+def evaluate(inst, df, spread, src, split, equity, tf=1, val=None, strategy_set="base"):
     rows, trades_all = [], []
-    main = run_strategies(inst, df, spread, tf)
-    val_res = run_strategies(inst, val[0], val[1], tf) if val else None
+    main = run_strategies(inst, df, spread, tf, strategy_set)
+    val_res = run_strategies(inst, val[0], val[1], tf, strategy_set) if val else None
     times = df["time"]
     for name, (trades, skipped) in main.items():
         row = {"symbol": inst.name, "strategy": name, "tf": tf, "spread_source": src, "skipped_cost": skipped}
@@ -125,14 +140,14 @@ def md_table(df: pd.DataFrame) -> str:
     return "\n".join(lines)
 
 
-def write_report(summary, trades, split, out: Path, source: str, equity: float, tf: int):
+def write_report(summary, trades, split, out: Path, source: str, equity: float, tf: int, title="Strategie-Test"):
     n_tests = int((summary.is_trades >= MIN_IS_TRADES).sum())
     is_hits = summary[(summary.is_trades >= MIN_IS_TRADES) & (summary.is_t >= MIN_IS_T) & (summary.is_avg_r > 0)]
     surv = survivors(summary)
     has_val = "val_trades" in summary
     label = {1: "M1", 15: "M15", 60: "H1"}.get(tf, f"{tf} Min.")
     lines = [
-        f"# Strategie-Test {label} ({source})",
+        f"# {title} {label} ({source})",
         "",
         f"- Märkte: {summary.symbol.nunique()}, Strategien: {summary.strategy.nunique()}, "
         f"Kombinationen mit genug Trades: {n_tests}",
@@ -168,6 +183,8 @@ def main(argv=None):
     p = argparse.ArgumentParser()
     p.add_argument("--source", choices=["histdata", "mt5"], required=True)
     p.add_argument("--tf", type=int, choices=sorted(TF_PARAMS), default=1)
+    p.add_argument("--set", dest="strategy_set", choices=["base", "combos"], default="base",
+                   help="base = 6 Einzelstrategien, combos = 9 festgelegte Kombinationen")
     p.add_argument("--config", default="config.yaml")
     p.add_argument("--days", type=int, default=365, help="nur mt5: Historie in Tagen")
     p.add_argument("--symbols", nargs="*")
@@ -192,21 +209,23 @@ def main(argv=None):
         if split is None:
             t0, t1 = df["time"].iloc[0], df["time"].iloc[-1]
             split = (t0 + (t1 - t0) * 2 / 3).normalize()
-        r, t = evaluate(inst, df, spread, src, split, args.equity, args.tf, val)
+        r, t = evaluate(inst, df, spread, src, split, args.equity, args.tf, val, args.strategy_set)
         rows += r
         trades += t
         best = max(r, key=lambda x: x.get("is_t", 0))
         print(f"{inst.name:8} {len(df):>7} M1-Kerzen, Spread {src:9} | bestes IS: {best['strategy']} "
               f"t={best['is_t']} OOS avgR={best['oos_avg_r']}", flush=True)
 
-    out = Path(args.out or f"research_out/tf{args.tf}")
+    prefix = "" if args.strategy_set == "base" else f"{args.strategy_set}_"
+    out = Path(args.out or f"research_out/{prefix}tf{args.tf}")
     out.mkdir(parents=True, exist_ok=True)
     summary = pd.DataFrame(rows)
     all_trades = pd.concat(trades, ignore_index=True) if trades else pd.DataFrame()
     summary.to_csv(out / "summary.csv", index=False)
     if len(all_trades):
         all_trades.to_csv(out / "trades.csv.gz", index=False)
-    write_report(summary, all_trades, split, out, args.source, args.equity, args.tf)
+    title = "Kombinations-Test" if args.strategy_set == "combos" else "Strategie-Test"
+    write_report(summary, all_trades, split, out, args.source, args.equity, args.tf, title)
     print(f"\nBericht: {out / 'report.md'}")
 
 
