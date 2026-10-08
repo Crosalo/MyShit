@@ -100,7 +100,8 @@ Parameter sind vorab festgelegt, nicht auf die Daten optimiert.
 python -m research.run --source mt5 --days 365 --tf 60
 ```
 Bisherige Offline-Ergebnisse: `research/RESULTS_histdata.md` (M1) und `research/RESULTS_timeframes.md`
-(M1/M15/H1 inkl. Validierung auf 2024-2025). Kurz: Keine der 6 Strategien hat einen Vorteil.
+(M1/M15/H1 inkl. Validierung auf 2024-2025), `research/RESULTS_combos.md` (9 Kombinationen,
+`--set combos`). Kurz: Weder die 6 Strategien noch ihre Kombinationen haben einen Vorteil.
 Für lange M1-Historie in MT5 vorher *Extras → Optionen → Charts → Max. Balken im Chart* auf „Unbegrenzt“ stellen.
 Ergebnis: `research_out\tf60\report.md` (Übersicht), `summary.csv`, `trades.csv.gz`.
 

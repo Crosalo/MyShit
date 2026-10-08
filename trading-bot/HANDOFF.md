@@ -36,6 +36,11 @@ Märkte wählen und handeln. Später 24/5 auf dem **Hostinger-VPS** (KVM 2, Ubun
 - `research/RESULTS_timeframes.md`: M1, M15 und H1 inkl. Validierung auf Jan 2024 - Sep 2025.
   **Alle 18 Kombinationen sind im Validierungszeitraum negativ.** Vor Kosten liegen alle Ideen bei
   ~0 R, haben also keinen Vorteil. Zwei H1-Kandidaten (TWAP_MR, FIX_FADE) waren Zufall.
+- `research/RESULTS_combos.md`: 9 vorab festgelegte Kombinationen (Filter, Abstimmung, Regime,
+  Portfolio) x 3 Zeitrahmen. 26 von 27 sind im Validierungszeitraum negativ. Einziger formaler
+  Überlebender (US100 ORB+TREND H1) = Nasdaq-Aufwärtstrend, kein Vorteil.
+- Der Nutzer meinte, er habe "viele Strategien geschickt". Angekommen ist nur ein TikTok-Link
+  (QuiverQuant). Falls er Strategien nachreicht: als feste Regeln festhalten und genauso testen.
 - Der MT5-Test auf dem PC ist die letzte Gegenprobe mit echten Fusion-Kosten. Erwartung: gleiches Urteil.
 
 ## Wie der Nutzer kommuniziert werden will
