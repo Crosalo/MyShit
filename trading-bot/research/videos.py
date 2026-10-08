@@ -575,7 +575,8 @@ def twin_scalp(b5: Bars, b60: Bars) -> list[dict]:
         for j in range(k + 1, min(k + 13, b5.n - 1)):
             ext = min(ext, b5.l[j]) if d == 1 else max(ext, b5.h[j])
             if (b5.c[j] - start) * d > 0:
-                h1_since = (b60.t >= b60.t.iloc[zi]) & (b60.t < b5.t.iloc[k])
+                # nur FERTIGE H1-Kerzen (Ende <= Zeitpunkt der Sweep-Kerze), sonst Zukunftswissen im Ziel
+                h1_since = (b60.t >= b60.t.iloc[zi]) & (b60.t + pd.Timedelta(hours=1) <= b5.t.iloc[k])
                 target = b60.h[h1_since.to_numpy()].max() if d == 1 else b60.l[h1_since.to_numpy()].min()
                 e0 = b5.o[j + 1] + (b5.spread[j + 1] if d == 1 else 0)
                 if abs(target - e0) >= abs(e0 - ext):

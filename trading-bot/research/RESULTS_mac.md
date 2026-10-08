@@ -24,12 +24,15 @@ D1 ab 1997. Aktien-CFDs (104 Stück, 0 Kommission, Mindestlot 0,1): M5 ~5 Jahre.
 | Noise-Boundary-Momentum (Zarattini 2024) | `research.momentum` | US100 +2,5 %, US500 −7,7 %, US30 −3,5 % (1 Jahr) |
 | ORB "Stocks in Play" (Zarattini 2024), 70 Aktien-CFDs, 2021–2026 | `research.orb_stocks` | M5 kann die Einstiegskerze nicht auflösen: bester Fall Top 5 +0,09R, schlechtester −0,63R. Offen, braucht M1/Ticks |
 
-## Offene Spuren (schwach, nicht handelbar)
-- TwinTraders H1-FVG + Sweep/BOS auf US-Indizes M1: +0,45R, 77 Trades in 3 Monaten (t=1,8).
-  Sauberer Test nur mit älteren M1-Daten (Max. Balken unbegrenzt) – wäre echtes Out-of-Sample.
+## Offene Spuren
+- ~~TwinTraders H1-FVG + Sweep/BOS auf US-Indizes M1~~: Out-of-Sample 11/2020–06/2026 mit
+  `research.twin_oos` geprüft. Die frühere Plusrechnung kam von Zukunftswissen im Kursziel (laufende,
+  unfertige H1-Kerze). Nach Korrektur −0,010R, t=−0,24, 1.407 Trades: **nicht bestanden**.
 - ORB auf Aktien-CFDs: nur mit M1 oder Ticks entscheidbar.
 
 ## Fallen, die schon einmal Scheinergebnisse erzeugt haben
+- **Werte aus höheren Zeitrahmen nur von FERTIGEN Kerzen nehmen** (Kerzenende <= Signalzeit).
+  Die laufende H1-Kerze im Kursziel machte TwinTraders scheinbar profitabel (t=3,8 statt −0,2).
 - **Serverzeit nie mit festem Versatz umrechnen.** Fusion ist ein NY-Close-Server (UTC+2/+3).
   Mit festen −3 h lagen H1/D1-Filter im Winter eine Stunde in der Zukunft; "Sneaky Pivot + H1-Trend"
   sah dadurch wie ein Gewinner aus und verschwand nach der Korrektur. Immer `server_epoch_to_utc`.
