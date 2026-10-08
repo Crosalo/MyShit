@@ -28,7 +28,12 @@ D1 ab 1997. Aktien-CFDs (104 Stück, 0 Kommission, Mindestlot 0,1): M5 ~5 Jahre.
 - ~~TwinTraders H1-FVG + Sweep/BOS auf US-Indizes M1~~: Out-of-Sample 11/2020–06/2026 mit
   `research.twin_oos` geprüft. Die frühere Plusrechnung kam von Zukunftswissen im Kursziel (laufende,
   unfertige H1-Kerze). Nach Korrektur −0,010R, t=−0,24, 1.407 Trades: **nicht bestanden**.
-- ORB auf Aktien-CFDs: nur mit M1 oder Ticks entscheidbar.
+- ~~ORB auf Aktien-CFDs~~: mit `research.orb_m1` dieselben Trades auf M1 nachgerechnet
+  (ElectronicArts, Travelers = die zwei häufigsten Top-5-Aktien, 264–673 Trades). Mitte −0,72R
+  (t=−8,7), selbst M1-optimistisch −0,62R. Der 10-%-ATR-Stop ist gegen den CFD-Spread zu eng.
+  **Nicht bestanden.**
+
+**Fazit: Auf den Fusion-CFDs hat keine getestete Daytrading-Strategie nach Kosten einen Vorteil.**
 
 ## Fallen, die schon einmal Scheinergebnisse erzeugt haben
 - **Werte aus höheren Zeitrahmen nur von FERTIGEN Kerzen nehmen** (Kerzenende <= Signalzeit).
