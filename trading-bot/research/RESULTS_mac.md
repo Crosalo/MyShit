@@ -64,3 +64,16 @@ D1 ab 1997. Aktien-CFDs (104 Stück, 0 Kommission, Mindestlot 0,1): M5 ~5 Jahre.
 - **Große Exporte füllen die Platte.** MT5 lädt dafür Historie nach (~140 MB je Aktie). Am 08.10.
   lief die Mac-Platte voll, MT5 hing 4,5 Stunden, die Live-EAs standen. Vorher Platz prüfen,
   in kleinen Paketen exportieren.
+
+## TwinScalp-EA (TwinTraders 1-Min-Scalping) im MT5-Tester mit echten Ticks
+
+`mql5/Experts/TwinScalp.mq5` setzt Test D als EA um (M1-Chart, Magic 20261008, Stop am M1-Sweep, Ziel 3R,
+Handel 3:00-16:00 New York). Tick-Test 01.01.-08.10.2026, Risiko je Trade 100 EUR normiert:
+
+| Symbol | Trades | Treffer | Ergebnis | je Trade |
+|---|---|---|---|---|
+| US30 | 118 | 28,8 % | -248 EUR | -0,02R (PF 0,97) |
+| NAS100 | 114 | 21 % TP, 12 % Handelsende | +666 EUR | +0,06R |
+
+Zusammen etwa +0,02R, t ungefähr 0,2: kein nachweisbarer Vorteil, passend zur Python-Rechnung über sechs Jahre
+(US100 -0,009R). Auf ausdrücklichen Wunsch trotzdem gebaut ("die beste Strategie auf dem kleinsten Zeitrahmen").
