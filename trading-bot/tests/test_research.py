@@ -110,3 +110,66 @@ def test_evaluate_smoke():
     assert {r["strategy"] for r in rows} == set(STRATEGIES)
     for t in trades:
         assert (t["exit_bar"] >= t["entry_bar"]).all() and np.isfinite(t["r"]).all()
+
+
+def test_resample_m15_ohlc():
+    from research.timeframes import resample
+    df = _m1(n=60)
+    r = resample(df, 15)
+    assert len(r) == 4
+    first = df.iloc[:15]
+    assert r.iloc[0].open == first.open.iloc[0] and r.iloc[0].close == first.close.iloc[-1]
+    assert r.iloc[0].high == first.high.max() and r.iloc[0].low == first.low.min()
+
+
+def test_to_m1_enters_at_next_tf_bar_open():
+    from research.timeframes import resample, to_m1
+    df = _m1(n=120)
+    bars = resample(df, 15)
+    n = len(bars)
+    lg = np.zeros(n, bool)
+    lg[2] = True  # Signal auf M15-Kerze 00:30-00:45
+    sig = Signals(lg, np.zeros(n, bool), np.full(n, 0.001), np.full(n, 0.002), 4)
+    m1sig = to_m1(sig, bars["time"], df["time"], 15)
+    s = int(np.flatnonzero(m1sig.long)[0])
+    assert df["time"].iloc[s + 1] == bars["time"].iloc[3]  # Einstieg = Eröffnung der nächsten M15-Kerze
+    assert m1sig.max_hold == 60 and m1sig.sl_dist[s] == 0.001
+
+
+@pytest.mark.parametrize("tf", [15, 60])
+@pytest.mark.parametrize("name", list(STRATEGIES))
+def test_tf_strategies_have_no_lookahead(name, tf):
+    from research.strategies import TF_PARAMS
+    from research.timeframes import resample
+    bars = resample(_m1(n=60000, seed=9), tf)
+    inst = BY_NAME["EURUSD"]
+    cut = int(len(bars) * 0.7)
+    params = TF_PARAMS[tf][name]
+    full = STRATEGIES[name](Context(bars, inst), **params)
+    part = STRATEGIES[name](Context(bars.iloc[:cut].reset_index(drop=True), inst), **params)
+    for arr in ("long", "short"):
+        assert np.array_equal(getattr(full, arr)[:cut], getattr(part, arr)), arr
+
+
+def test_evaluate_tf15_with_validation():
+    df = _m1(n=40000)
+    old = _m1(n=30000, seed=8)
+    inst = BY_NAME["EURUSD"]
+    spread = np.full(len(df), 0.00002)
+    rows, trades = evaluate(inst, df, spread, "test", df["time"].iloc[26000], 19.0, tf=15,
+                            val=(old, np.full(len(old), 0.00002)))
+    assert all("val_trades" in r and r["tf"] == 15 for r in rows)
+    for t in trades:
+        assert set(t["part"]) <= {"is", "oos", "val"}
+
+
+@pytest.mark.parametrize("tf", [1, 15, 60])
+def test_orb_trades_on_every_timeframe(tf):
+    from research.strategies import TF_PARAMS
+    from research.timeframes import resample
+    bars = resample(make_ohlc(n=20000, start=1.10, noise=0.0002, seed=4, freq="1min",
+                              t0="2026-03-02 00:00"), tf)
+    ctx = Context(bars, BY_NAME["EURUSD"])
+    assert ctx.tf_min == tf
+    sig = STRATEGIES["ORB"](ctx, **TF_PARAMS[tf].get("ORB", {}))
+    assert (sig.long | sig.short).sum() >= 5
