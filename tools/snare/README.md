@@ -34,6 +34,23 @@ Ohne `--drumsep` läuft nur Stufe 1.
 Auf einer CPU mit 4 Kernen dauert Stufe 1 ungefähr so lange wie der Song
 selbst, eher etwas länger.
 
+## Snare ohne drumsep: `analyze_snare.py`
+
+Sucht in `drums.wav` alle Schläge, sortiert sie nach Klangfarbe in vier
+Gruppen und nimmt die Gruppe, die nach Snare aussieht. Daraus schneidet es
+den saubersten Schlag als `snare_oneshot.wav` (Hochpass bei 100 Hz) und misst
+Grundton, Helligkeit und Ausklingzeit.
+
+```bash
+.venv/bin/python tools/snare/analyze_snare.py tools/snare/output/<song>/drums.wav tools/snare/output/<song>
+```
+
+Die automatische Wahl kann danebenliegen. Die Ausgabe listet jede Gruppe mit
+Abstand zwischen den Schlägen; die Snare kommt gleichmäßig alle 2 Beats.
+Passt das nicht, die richtige Gruppe als drittes Argument mitgeben.
+
+Fertige One-Shots liegen in `samples/`.
+
 ## drumsep-Modell
 
 Original: <https://github.com/inagoy/drumsep> (Google-Drive-Download im
